@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.0 (2025-03-05)
+
+### Features
+
+- Add rate limiting handling and reset time parsing in openai client ([`bc03369`](https://github.com/markm-io/ai-essay-evaluator/commit/bc03369ec2367f5b07b68d26dd5ce80fa0c8aafa))
+- Enhance cost analysis by accumulating usage details and updating cost calculation logic ([`54141c6`](https://github.com/markm-io/ai-essay-evaluator/commit/54141c6826a368e91ec7b9b38224f807abac413d))
+- Refactor openai client integration to use asyncopenai and improve error handling ([`bda29f7`](https://github.com/markm-io/ai-essay-evaluator/commit/bda29f727f0e9f602afcb78eb137bb758dbb536d))
+- Rename grader to evaluator in cli and update command options ([`e2031ea`](https://github.com/markm-io/ai-essay-evaluator/commit/e2031ea9d2acb1f8fa11f0ddf1fa296f1ae2e0a2))
+
 ## v0.2.0 (2025-03-05)
 
 ### Features
