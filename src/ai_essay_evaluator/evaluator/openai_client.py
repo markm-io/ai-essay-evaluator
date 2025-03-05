@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 
 import openai
 import pandas as pd
@@ -31,10 +32,23 @@ class StandardScoringResponse(BaseModel):
     feedback: str
 
 
+def parse_reset_time(reset_str: str) -> int:
+    """
+    Parses a reset time string (e.g. "1s" or "6m0s") and returns the number of seconds.
+    """
+    minutes = 0
+    seconds = 0
+    m_match = re.search(r"(\d+)m", reset_str)
+    if m_match:
+        minutes = int(m_match.group(1))
+    s_match = re.search(r"(\d+)s", reset_str)
+    if s_match:
+        seconds = int(s_match.group(1))
+    return minutes * 60 + seconds
+
+
 @retry(**RETRY_SETTINGS)
-async def call_openai_parse(
-    messages: list[dict[str, str] | dict[str, str]], model: str, client: AsyncOpenAI, scoring_format: str
-):
+async def call_openai_parse(messages: list[dict[str, str]], model: str, client: AsyncOpenAI, scoring_format: str):
     response_format = ExtendedScoringResponse if scoring_format == "extended" else StandardScoringResponse
     max_completion_tokens = 2000
 
@@ -45,6 +59,18 @@ async def call_openai_parse(
         response_format=response_format,
         max_tokens=max_completion_tokens,
     )
+
+    # Rate limiting check based on request limits:
+    headers = getattr(response, "headers", {})  # Assume headers are available on the response
+    remaining_requests = int(headers.get("x-ratelimit-remaining-requests", 1))
+    if remaining_requests <= 0:
+        reset_str = headers.get("x-ratelimit-reset-requests", "1s")
+        wait_time = parse_reset_time(reset_str)
+        logging.info(f"Rate limit for requests exhausted. Sleeping for {wait_time} seconds...")
+        await asyncio.sleep(wait_time)
+
+    # You can add similar checks for tokens using x-ratelimit-remaining-tokens if needed.
+
     structured = extract_structured_response(response, scoring_format)
     usage = response.usage
     return structured, usage
@@ -64,10 +90,10 @@ async def process_with_openai(df, ai_model, api_key, stories, rubrics, question,
             return await call_openai_parse(prompt, ai_model, client, scoring_format)
         except ValidationError as e:
             logging.error(f"Validation failed for row {row['Local Student ID']}: {e}")
-            return get_default_response(scoring_format)
+            return get_default_response(scoring_format), {}
         except Exception as e:
             logging.error(f"Error processing row {row['Local Student ID']}: {e}")
-            return get_default_response(scoring_format)
+            return get_default_response(scoring_format), {}
 
     tasks = [process_row(row) for _, row in df.iterrows()]
     results = await asyncio.gather(*tasks)
