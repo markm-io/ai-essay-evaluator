@@ -82,6 +82,7 @@ lint.per-file-ignores."tests/**/*" = [
   "D103",
   "D104",
   "S101",
+  "S603",
 ]
 lint.isort.known-first-party = [ "ai_essay_evaluator", "tests" ]
 
