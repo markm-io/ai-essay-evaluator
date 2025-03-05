@@ -26,6 +26,10 @@ classifiers = [
 ]
 
 dependencies = [
+    "openai>=1.65.3",
+    "pandas>=2.2.3",
+    "pydantic>=2.10.6",
+    "typer>=0.15.2",
 ]
 urls."Bug Tracker" = "https://github.com/markm-io/ai-essay-evaluator/issues"
 urls.Changelog = "https://github.com/markm-io/ai-essay-evaluator/blob/main/CHANGELOG.md"
