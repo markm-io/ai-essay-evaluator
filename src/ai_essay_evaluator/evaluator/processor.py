@@ -1,10 +1,11 @@
 import logging
 
 import pandas as pd
-from cost_analysis import analyze_cost
-from file_handler import merge_csv_files, save_results
-from openai_client import process_with_openai
-from utils import read_text_files, validate_csv
+
+from .cost_analysis import analyze_cost
+from .file_handler import merge_csv_files, save_results
+from .openai_client import process_with_openai
+from .utils import read_text_files, validate_csv
 
 
 async def process_csv(

@@ -3,7 +3,8 @@ import time
 from pathlib import Path
 
 import typer
-from processor import process_csv
+
+from .processor import process_csv
 
 grader_app = typer.Typer(help="CLI for grading student responses.")
 
