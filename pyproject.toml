@@ -4,7 +4,7 @@ requires = [ "setuptools" ]
 
 [project]
 name = "ai-essay-evaluator"
-version = "0.1.0"
+version = "0.1.1"
 description = "This repository provides a modular framework for generating, validating, merging, uploading, and fine-tuning OpenAI GPT-4o-mini models using structured JSONL datasets."
 readme = "README.md"
 license = { text = "MIT" }

@@ -1,6 +1,12 @@
 # Changelog
 
+## v0.1.1 (2025-03-05)
+
 ## v0.1.0 (2025-03-05)
+
+### Bug fixes
+
+- Update numpy version constraints and remove redundant entries in uv.lock ([`f654511`](https://github.com/markm-io/ai-essay-evaluator/commit/f654511d4e9fe21ff5d782828a1dce9882b494ae))
 
 ### Features
 
