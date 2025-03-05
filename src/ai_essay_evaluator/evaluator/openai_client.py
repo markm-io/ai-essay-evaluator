@@ -4,6 +4,7 @@ import logging
 
 import openai
 import pandas as pd
+from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
@@ -32,28 +33,40 @@ class StandardScoringResponse(BaseModel):
 
 @retry(**RETRY_SETTINGS)
 async def call_openai_parse(
-    messages: list[dict[str, str] | dict[str, str]], model: str, api_key: str, scoring_format: str
+    messages: list[dict[str, str] | dict[str, str]], model: str, client: AsyncOpenAI, scoring_format: str
 ):
-    openai.api_key = api_key
     response_format = ExtendedScoringResponse if scoring_format == "extended" else StandardScoringResponse
     max_completion_tokens = 2000
-    response = await openai.beta.chat.completions.parse(
+
+    response = await client.beta.chat.completions.parse(
         model=model,
         messages=messages,
         temperature=0,
         response_format=response_format,
         max_tokens=max_completion_tokens,
     )
-    return extract_structured_response(response, scoring_format)
+    structured = extract_structured_response(response, scoring_format)
+    usage = response.usage
+    return structured, usage
 
 
-async def process_with_openai(df, ai_model, api_key, stories, rubrics, question, scoring_format):
+async def process_with_openai(df, ai_model, api_key, stories, rubrics, question, scoring_format, openai_project=None):
+    client = AsyncOpenAI(
+        api_key=api_key,
+        project=openai_project,
+        timeout=30,
+        max_retries=3,
+    )
+
     async def process_row(row):
         prompt = generate_prompt(row, scoring_format, stories, rubrics, question)
         try:
-            return await call_openai_parse(prompt, ai_model, api_key, scoring_format)
+            return await call_openai_parse(prompt, ai_model, client, scoring_format)
         except ValidationError as e:
             logging.error(f"Validation failed for row {row['Local Student ID']}: {e}")
+            return get_default_response(scoring_format)
+        except Exception as e:
+            logging.error(f"Error processing row {row['Local Student ID']}: {e}")
             return get_default_response(scoring_format)
 
     tasks = [process_row(row) for _, row in df.iterrows()]
@@ -120,9 +133,10 @@ def generate_prompt(row, scoring_format, story_dict, rubric_text, question_text)
 
 @retry(**RETRY_SETTINGS)
 def extract_structured_response(response, scoring_format):
-    structured_output = response.get("structured_output", {})
+    response_text = response.choices[0].message.content.strip()
 
     try:
+        structured_output = json.loads(response_text)
         if scoring_format == "extended":
             return ExtendedScoringResponse(**structured_output).model_dump()
         else:
