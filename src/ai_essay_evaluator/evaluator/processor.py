@@ -38,13 +38,17 @@ async def process_csv(
     rubrics = read_text_files(rubric_folder) if rubric_folder else {}
     question = question_file.read_text() if question_file else None
 
-    # Process passes
+    cumulative_usage = []  # To accumulate usage details across passes
     results = []
     for i in range(1, passes + 1):
         output_path = export_folder / f"{file_name}_pass_{i}.csv"
-        processed_df = await process_with_openai(df, ai_model, api_key, stories, rubrics, question, scoring_format)
+        # process_with_openai now returns a tuple: (processed DataFrame, usage_list)
+        processed_df, usage_list = await process_with_openai(
+            df, ai_model, api_key, stories, rubrics, question, scoring_format, openai_project
+        )
         save_results(processed_df, output_path)
         results.append(output_path)
+        cumulative_usage.extend(usage_list)
 
     # Merge results if required
     if passes > 1 and merge_results:
@@ -52,4 +56,11 @@ async def process_csv(
         merge_csv_files(results, merged_path)
 
     if cost_analysis:
-        analyze_cost(df, passes)
+        cost_data = analyze_cost(cumulative_usage)
+
+        # Save usage information to CSV if log is True
+        if log:
+            cost_df = pd.DataFrame([cost_data])
+            cost_file_path = export_folder / f"{file_name}_cost_analysis.csv"
+            cost_df.to_csv(cost_file_path, index=False)
+            logging.info(f"Cost analysis saved to {cost_file_path}")

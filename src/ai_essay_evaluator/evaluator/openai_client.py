@@ -72,8 +72,12 @@ async def process_with_openai(df, ai_model, api_key, stories, rubrics, question,
     tasks = [process_row(row) for _, row in df.iterrows()]
     results = await asyncio.gather(*tasks)
 
-    structured_df = pd.DataFrame(results)
-    return pd.concat([df, structured_df], axis=1)
+    # Separate structured responses and usage details.
+    structured_results = [res for res, usage in results]
+    usage_list = [usage for res, usage in results if usage]
+
+    structured_df = pd.DataFrame(structured_results)
+    return pd.concat([df, structured_df], axis=1), usage_list
 
 
 def generate_prompt(row, scoring_format, story_dict, rubric_text, question_text):
