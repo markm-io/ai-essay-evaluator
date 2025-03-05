@@ -1,12 +1,21 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
-exclude: "{{package_name}}|.all-contributorsrc"
+exclude: "CHANGELOG.md|.copier-answers.yml|.all-contributorsrc|project"
 default_stages: [pre-commit]
 default_install_hook_types:
   - pre-commit
   - commit-msg
 
+ci:
+  autofix_commit_msg: "chore(pre-commit.ci): auto fixes"
+  autoupdate_commit_msg: "chore(pre-commit.ci): pre-commit autoupdate"
+
 repos:
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.4.1
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -40,13 +49,13 @@ repos:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --line-length=120, --ignore=S324]
       - id: ruff-format
+        args: [--line-length=120]
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
     hooks:
       - id: codespell
-  - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.0.0
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
     hooks:
-      - id: conventional-pre-commit
-        stages: [commit-msg]
-        args: []
+      - id: mypy
+        additional_dependencies: []
