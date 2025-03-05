@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 
 from . import create_fine_tuning_job, generate_jsonl, merge_jsonl_files, upload_jsonl, validate_jsonl
@@ -7,7 +5,7 @@ from . import create_fine_tuning_job, generate_jsonl, merge_jsonl_files, upload_
 trainer_app = typer.Typer(help="Generate, validate, merge, upload, and fine-tune JSONL files.")
 
 
-@trainer_app.command()
+@trainer_app.command(name="generate")
 def generate(
     story_folder: str = typer.Option(..., help="Path to the folder to the story.txt file"),
     question: str = typer.Option(..., help="Path to the question.txt file"),
@@ -23,7 +21,7 @@ def generate(
     typer.echo(f"✅ JSONL file generated: {jsonl_file}")
 
 
-@trainer_app.command()
+@trainer_app.command(name="validate")
 def validate(
     file: str = typer.Option(..., help="Path to the JSONL file to validate"),
     scoring_format: str = typer.Option("extended", help="Scoring format: extended, item-specific, or short."),
@@ -33,7 +31,7 @@ def validate(
         typer.echo("✅ JSONL file is valid!")
 
 
-@trainer_app.command()
+@trainer_app.command(name="merge")
 def merge(
     folder: str = typer.Option(..., help="Path to the folder containing JSONL files"),
     output: str = typer.Option("merged_fine_tuning.jsonl", help="Output merged JSONL file name"),
@@ -43,21 +41,21 @@ def merge(
     typer.echo(f"✅ Merged JSONL file created: {merged_file}")
 
 
-@trainer_app.command()
+@trainer_app.command(name="upload")
 def upload(
     file: str = typer.Option(..., help="Path to the JSONL file to upload"),
-    api_key: Optional[str] = typer.Option(None, help="OpenAI API key"),
+    api_key: str | None = typer.Option(None, help="OpenAI API key"),
 ) -> None:
     """Upload a validated JSONL file to OpenAI."""
     file_id = upload_jsonl(file, api_key)
     typer.echo(f"✅ JSONL file uploaded! File ID: {file_id}")
 
 
-@trainer_app.command()
+@trainer_app.command(name="fine-tune")
 def fine_tune(
-    file: Optional[str] = typer.Option(None, help="Path to a validated JSONL file for uploading & fine-tuning"),
-    file_id: Optional[str] = typer.Option(None, help="Existing file ID to use for fine-tuning"),
-    api_key: Optional[str] = typer.Option(None, help="OpenAI API key"),
+    file: str | None = typer.Option(None, help="Path to a validated JSONL file for uploading & fine-tuning"),
+    file_id: str | None = typer.Option(None, help="Existing file ID to use for fine-tuning"),
+    api_key: str | None = typer.Option(None, help="OpenAI API key"),
     scoring_format: str = typer.Option(None, help="Scoring format: extended, item-specific, or short."),
 ) -> None:
     """Start a fine-tuning job using OpenAI."""
