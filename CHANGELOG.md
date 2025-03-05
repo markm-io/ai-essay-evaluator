@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.0 (2025-03-05)
+
+### Features
+
+- Add pre-push hook to check for remote updates ([`d2914eb`](https://github.com/markm-io/ai-essay-evaluator/commit/d2914eba7d64bf9b74aea4a17bd890cabb9081ac))
+
 ## v0.1.1 (2025-03-05)
 
 ## v0.1.0 (2025-03-05)
