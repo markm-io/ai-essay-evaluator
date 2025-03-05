@@ -6,14 +6,14 @@ import typer
 
 from .processor import process_csv
 
-grader_app = typer.Typer(help="CLI for grading student responses.")
+evaluator_app = typer.Typer(help="CLI for grading student responses.")
 
 
-@grader_app.command()
+@evaluator_app.command()
 def grader(
-    input_file: Path = typer.Argument(..., help="Path to input CSV"),
-    export_folder: Path = typer.Argument(..., help="Folder to export results"),
-    export_file_name: str = typer.Argument(..., help="Base file name for output"),
+    input_file: Path = typer.Option(..., help="Path to input CSV"),
+    export_folder: Path = typer.Option(..., help="Folder to export results"),
+    export_file_name: str = typer.Option(..., help="Base file name for output"),
     scoring_format: str = typer.Option(..., help="Scoring format: extended, item-specific, short"),
     story_folder: Path = typer.Option(..., help="Folder containing story text files"),
     rubric_folder: Path = typer.Option(..., help="Folder containing rubric text files"),
