@@ -1,10 +1,9 @@
 import os
-from typing import Optional
 
 from openai import OpenAI
 
 
-def upload_jsonl(jsonl_path: str, api_key: Optional[str] = None) -> str:
+def upload_jsonl(jsonl_path: str, api_key: str | None = None) -> str:
     """
     Upload JSONL file to OpenAI for fine-tuning.
 

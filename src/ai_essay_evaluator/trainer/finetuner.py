@@ -1,10 +1,9 @@
 import os
-from typing import Optional
 
 from openai import OpenAI
 
 
-def create_fine_tuning_job(file_id: str, api_key: Optional[str] = None, model: str = "gpt-4o-mini-2024-07-18") -> str:
+def create_fine_tuning_job(file_id: str, api_key: str | None = None, model: str = "gpt-4o-mini-2024-07-18") -> str:
     """Creates a fine-tuning job with OpenAI using the uploaded JSONL file."""
     try:
         if api_key is None and not os.getenv("OPENAI_API_KEY"):
