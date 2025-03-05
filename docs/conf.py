@@ -66,14 +66,14 @@ html_theme = "sphinx_wagtail_theme"
 html_static_path = ["_static"]
 
 # These are options specifically for the Wagtail Theme.
-html_theme_options = dict(
-    project_name="AI Essay Evaluator",
-    logo="logo.svg",
-    logo_alt="AI Essay Evaluator"
-    logo_height=59,
-    logo_url="/",
-    logo_width=45,
-)
+html_theme_options = {
+    "project_name": "AI Essay Evaluator",
+    "logo": "logo.svg",
+    "logo_alt": "AI Essay Evaluator",
+    "logo_height": 59,
+    "logo_url": "/",
+    "logo_width": 45,
+}
 
 
 # -- Automatically run sphinx-apidoc -----------------------------------------
