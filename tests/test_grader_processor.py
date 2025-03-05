@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -7,129 +7,163 @@ from ai_essay_evaluator.evaluator.processor import process_csv
 
 
 @pytest.fixture
-def sample_csv(tmp_path):
-    """Create a sample CSV file for testing."""
-    df = pd.DataFrame(
-        {
-            "Student Constructed Response": ["This is a test response"],
-            "Local Student ID": [12345],
-            "Tested Language": ["English"],
-            "Enrolled Grade Level": [5],
-        }
+def sample_df():
+    """Create a sample DataFrame for testing."""
+    return pd.DataFrame(
+        {"student_id": ["001", "002", "003"], "essay_response": ["Sample essay 1", "Sample essay 2", "Sample essay 3"]}
     )
-    csv_path = tmp_path / "test_input.csv"
-    df.to_csv(csv_path, index=False)
-    return csv_path
 
 
 @pytest.fixture
-def export_folder(tmp_path):
-    """Create an export folder."""
-    folder = tmp_path / "export"
-    folder.mkdir()
-    return folder
+def temp_files(tmp_path):
+    """Setup temporary files for testing."""
+    # Create input CSV file
+    input_file = tmp_path / "test_input.csv"
+    pd.DataFrame(
+        {"student_id": ["001", "002", "003"], "essay_response": ["Sample essay 1", "Sample essay 2", "Sample essay 3"]}
+    ).to_csv(input_file, index=False)
 
+    # Create sample story and rubric files
+    story_folder = tmp_path / "stories"
+    story_folder.mkdir()
+    (story_folder / "story1.txt").write_text("This is a test story")
 
-@pytest.fixture
-def story_folder(tmp_path):
-    """Create a folder with story files."""
-    folder = tmp_path / "stories"
-    folder.mkdir()
-    (folder / "story1.txt").write_text("This is a test story")
-    return folder
+    rubric_folder = tmp_path / "rubrics"
+    rubric_folder.mkdir()
+    (rubric_folder / "rubric1.txt").write_text("Test rubric content")
 
+    question_file = tmp_path / "question.txt"
+    question_file.write_text("Test question?")
 
-@pytest.fixture
-def rubric_folder(tmp_path):
-    """Create a folder with rubric files."""
-    folder = tmp_path / "rubrics"
-    folder.mkdir()
-    (folder / "rubric1.txt").write_text("Test scoring rubric")
-    return folder
+    export_folder = tmp_path / "exports"
 
-
-@pytest.fixture
-def question_file(tmp_path):
-    """Create a question file."""
-    file_path = tmp_path / "question.txt"
-    file_path.write_text("Test question")
-    return file_path
+    return {
+        "input_file": input_file,
+        "export_folder": export_folder,
+        "story_folder": story_folder,
+        "rubric_folder": rubric_folder,
+        "question_file": question_file,
+    }
 
 
 @pytest.mark.asyncio
-async def test_process_csv(sample_csv, export_folder, story_folder, rubric_folder, question_file):
-    """Test the process_csv function."""
+async def test_process_csv_single_pass(temp_files):
+    """Test processing CSV with a single pass."""
     # Mock dependencies
     with (
         patch("ai_essay_evaluator.evaluator.processor.validate_csv") as mock_validate,
-        patch("ai_essay_evaluator.evaluator.processor.read_text_files") as mock_read_texts,
+        patch("ai_essay_evaluator.evaluator.processor.read_text_files") as mock_read_files,
         patch("ai_essay_evaluator.evaluator.processor.process_with_openai", new_callable=AsyncMock) as mock_process,
         patch("ai_essay_evaluator.evaluator.processor.save_results") as mock_save,
-        patch("ai_essay_evaluator.evaluator.processor.merge_csv_files") as mock_merge,
         patch("ai_essay_evaluator.evaluator.processor.analyze_cost") as mock_analyze,
     ):
-        # Configure mocks
-        mock_read_texts.side_effect = lambda folder: {"file1": "content"}
+        # Setup mock returns
+        mock_read_files.side_effect = lambda folder: {"file1.txt": "content"} if folder else {}
 
-        # Create a response DataFrame with the same rows as input plus score columns
-        input_df = pd.read_csv(sample_csv)
-        response_df = pd.concat([input_df, pd.DataFrame({"score": [4], "feedback": ["Good work"]})], axis=1)
-        mock_process.return_value = response_df
+        processed_df = pd.DataFrame(
+            {
+                "student_id": ["001", "002", "003"],
+                "essay_response": ["Sample essay 1", "Sample essay 2", "Sample essay 3"],
+                "score": [85, 90, 75],
+            }
+        )
+        mock_usages = [MagicMock(prompt_tokens=100, completion_tokens=50)]
+        mock_process.return_value = (processed_df, mock_usages)
 
-        # Call the function under test
+        # Call the function
         await process_csv(
-            input_file=sample_csv,
-            export_folder=export_folder,
+            input_file=temp_files["input_file"],
+            export_folder=temp_files["export_folder"],
             file_name="test_output",
-            scoring_format="standard",
-            openai_project=True,
-            api_key="test_key",
-            ai_model="gpt-4o",
+            scoring_format="numeric",
+            openai_project="test-project",
+            api_key="test-key",
+            ai_model="gpt-4",
             log=True,
             cost_analysis=True,
-            passes=2,
-            merge_results=True,
-            story_folder=story_folder,
-            rubric_folder=rubric_folder,
-            question_file=question_file,
+            passes=1,
+            merge_results=False,
+            story_folder=temp_files["story_folder"],
+            rubric_folder=temp_files["rubric_folder"],
+            question_file=temp_files["question_file"],
         )
 
-        # Assertions
+        # Verify calls
         mock_validate.assert_called_once()
-        assert mock_read_texts.call_count == 2
-        assert mock_process.call_count == 2
-        assert mock_save.call_count == 2
-
-        # Check that output paths were properly generated
-        expected_output_paths = [export_folder / "test_output_pass_1.csv", export_folder / "test_output_pass_2.csv"]
-        mock_merge.assert_called_once_with(expected_output_paths, export_folder / "test_output_merged.csv")
-        mock_analyze.assert_called_once()
+        assert mock_read_files.call_count == 2
+        mock_process.assert_called_once()
+        mock_save.assert_called_once()
+        mock_analyze.assert_called_once_with(mock_usages)
 
 
 @pytest.mark.asyncio
-async def test_process_csv_single_pass(sample_csv, export_folder):
-    """Test process_csv with a single pass and no additional files."""
+async def test_process_csv_multiple_passes_with_merge(temp_files):
+    """Test processing CSV with multiple passes and merging results."""
+    # Mock dependencies
     with (
-        patch("ai_essay_evaluator.evaluator.processor.validate_csv") as mock_validate,
+        patch("ai_essay_evaluator.evaluator.processor.validate_csv"),
+        patch("ai_essay_evaluator.evaluator.processor.read_text_files") as mock_read_files,
         patch("ai_essay_evaluator.evaluator.processor.process_with_openai", new_callable=AsyncMock) as mock_process,
-        patch("ai_essay_evaluator.evaluator.processor.save_results") as mock_save,
+        patch("ai_essay_evaluator.evaluator.processor.save_results"),
         patch("ai_essay_evaluator.evaluator.processor.merge_csv_files") as mock_merge,
         patch("ai_essay_evaluator.evaluator.processor.analyze_cost") as mock_analyze,
     ):
-        # Configure mocks
-        input_df = pd.read_csv(sample_csv)
-        response_df = pd.concat([input_df, pd.DataFrame({"score": [3], "feedback": ["Needs improvement"]})], axis=1)
-        mock_process.return_value = response_df
+        # Setup mock returns
+        mock_read_files.return_value = {"file1.txt": "content"}
 
-        # Call the function under test with minimal parameters
+        processed_df = pd.DataFrame({"student_id": ["001", "002", "003"], "score": [85, 90, 75]})
+        mock_usages = [MagicMock(prompt_tokens=100, completion_tokens=50)]
+        mock_process.return_value = (processed_df, mock_usages)
+
+        # Call the function
         await process_csv(
-            input_file=sample_csv,
-            export_folder=export_folder,
-            file_name="minimal_test",
-            scoring_format="standard",
-            openai_project=True,
-            api_key="test_key",
-            ai_model="gpt-4o",
+            input_file=temp_files["input_file"],
+            export_folder=temp_files["export_folder"],
+            file_name="test_output",
+            scoring_format="numeric",
+            openai_project="test-project",
+            api_key="test-key",
+            ai_model="gpt-4",
+            log=False,
+            cost_analysis=True,
+            passes=3,
+            merge_results=True,
+            story_folder=temp_files["story_folder"],
+            rubric_folder=temp_files["rubric_folder"],
+            question_file=None,
+        )
+
+        # Verify calls
+        assert mock_process.call_count == 3
+        mock_merge.assert_called_once()
+        mock_analyze.assert_called_once()
+        # There should be 3 passed usages (3 passes * 1 usage per pass)
+        assert len(mock_analyze.call_args[0][0]) == 3
+
+
+@pytest.mark.asyncio
+async def test_process_csv_no_cost_analysis(temp_files):
+    """Test processing CSV without cost analysis."""
+    # Mock dependencies
+    with (
+        patch("ai_essay_evaluator.evaluator.processor.validate_csv"),
+        patch("ai_essay_evaluator.evaluator.processor.read_text_files"),
+        patch("ai_essay_evaluator.evaluator.processor.process_with_openai", new_callable=AsyncMock) as mock_process,
+        patch("ai_essay_evaluator.evaluator.processor.save_results"),
+        patch("ai_essay_evaluator.evaluator.processor.analyze_cost") as mock_analyze,
+    ):
+        processed_df = pd.DataFrame({"student_id": ["001", "002", "003"], "score": [85, 90, 75]})
+        mock_process.return_value = (processed_df, [])
+
+        # Call the function with cost_analysis=False
+        await process_csv(
+            input_file=temp_files["input_file"],
+            export_folder=temp_files["export_folder"],
+            file_name="test_output",
+            scoring_format="numeric",
+            openai_project="test-project",
+            api_key="test-key",
+            ai_model="gpt-4",
             log=False,
             cost_analysis=False,
             passes=1,
@@ -139,9 +173,5 @@ async def test_process_csv_single_pass(sample_csv, export_folder):
             question_file=None,
         )
 
-        # Assertions
-        mock_validate.assert_called_once()
-        mock_process.assert_called_once()
-        mock_save.assert_called_once()
-        mock_merge.assert_not_called()
+        # Verify analyze_cost was not called
         mock_analyze.assert_not_called()

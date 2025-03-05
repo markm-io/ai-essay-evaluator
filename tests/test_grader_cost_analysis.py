@@ -1,12 +1,15 @@
 import sys
 from io import StringIO
+from types import SimpleNamespace
 
-import pandas as pd
+import pytest
 
 from ai_essay_evaluator.evaluator.cost_analysis import analyze_cost
 
 
 class CaptureOutput:
+    """Helper class to capture stdout for testing."""
+
     def __init__(self):
         self.old_stdout = None
         self.captured_output = None
@@ -21,61 +24,94 @@ class CaptureOutput:
         sys.stdout = self.old_stdout
 
 
-def test_analyze_cost():
-    # Create a sample DataFrame
-    df = pd.DataFrame({"essay_id": [1, 2, 3, 4, 5], "content": ["text1", "text2", "text3", "text4", "text5"]})
+def create_usage_object(prompt_tokens, completion_tokens, cached_tokens=0):
+    """Create a mock usage object similar to what the analyze_cost function expects."""
+    usage = SimpleNamespace(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
 
-    # Set number of passes
-    passes = 2
+    if cached_tokens > 0:
+        usage.prompt_tokens_details = SimpleNamespace(cached_tokens=cached_tokens)
 
-    # Calculate expected costs manually
-    input_tokens = len(df) * passes * 100
-    uncached_cost = (input_tokens / 1_000_000) * 0.30
-    cached_cost = (input_tokens / 1_000_000) * 0.15
-    output_cost = (len(df) * passes * 50 / 1_000_000) * 1.2
-    expected_total = uncached_cost + cached_cost + output_cost
-    expected_output = f"Estimated Cost: ${expected_total:.4f}"
+    return usage
 
-    # Capture the printed output
+
+def test_analyze_cost_basic():
+    """Test basic cost analysis with multiple usage records."""
+    # Create sample usage data
+    usages = [create_usage_object(1000, 200, 300), create_usage_object(2000, 400, 600)]
+
+    # Calculate expected values
+    total_prompt_tokens = 3000
+    total_cached_tokens = 900
+    total_output_tokens = 600
+    total_uncached_tokens = 2100
+
+    cost_uncached = (total_uncached_tokens / 1_000_000) * 0.30
+    cost_cached = (total_cached_tokens / 1_000_000) * 0.15
+    cost_output = (total_output_tokens / 1_000_000) * 1.20
+    total_cost = cost_uncached + cost_cached + cost_output
+
+    # Capture printed output
     with CaptureOutput() as output:
-        analyze_cost(df, passes)
+        result = analyze_cost(usages)
 
-    # Assert the captured output matches the expected output
-    assert output.getvalue().strip() == expected_output
+    # Verify printed output
+    assert output.getvalue().strip() == f"Estimated Cost: ${total_cost:.4f}"
+
+    # Verify returned dictionary values
+    assert result["total_cached_tokens"] == total_cached_tokens
+    assert result["total_prompt_tokens"] == total_prompt_tokens
+    assert result["total_output_tokens"] == total_output_tokens
+    assert result["total_uncached_tokens"] == total_uncached_tokens
+    assert result["cost_uncached"] == pytest.approx(cost_uncached)
+    assert result["cost_cached"] == pytest.approx(cost_cached)
+    assert result["cost_output"] == pytest.approx(cost_output)
+    assert result["total_cost"] == pytest.approx(total_cost)
 
 
-def test_analyze_cost_zero_data():
-    # Test with empty DataFrame
-    df = pd.DataFrame()
-    passes = 5
+def test_analyze_cost_no_cached_tokens():
+    """Test cost analysis when no cached tokens are present."""
+    # Create sample usage without cached tokens
+    usages = [create_usage_object(1000, 200), create_usage_object(2000, 400)]
 
-    # Calculate expected cost (should be zero)
-    expected_output = "Estimated Cost: $0.0000"
+    total_prompt_tokens = 3000
+    total_output_tokens = 600
+    total_uncached_tokens = 3000
 
-    # Capture the printed output
+    with CaptureOutput():
+        result = analyze_cost(usages)
+
+    assert result["total_cached_tokens"] == 0
+    assert result["total_uncached_tokens"] == total_prompt_tokens
+    assert result["total_cost"] == pytest.approx(
+        (total_uncached_tokens / 1_000_000) * 0.30 + (total_output_tokens / 1_000_000) * 1.20
+    )
+
+
+def test_analyze_cost_empty_list():
+    """Test cost analysis with an empty list of usages."""
     with CaptureOutput() as output:
-        analyze_cost(df, passes)
+        result = analyze_cost([])
 
-    # Assert the captured output matches the expected output
-    assert output.getvalue().strip() == expected_output
+    assert output.getvalue().strip() == "Estimated Cost: $0.0000"
+    assert result["total_cached_tokens"] == 0
+    assert result["total_prompt_tokens"] == 0
+    assert result["total_output_tokens"] == 0
+    assert result["total_cost"] == 0
 
 
-def test_analyze_cost_different_parameters():
-    # Test with different parameters
-    df = pd.DataFrame({"essay_id": [1, 2, 3]})
-    passes = 10
+def test_analyze_cost_real_example():
+    """Test with values matching the example from results_cost_analysis.csv."""
+    # From the CSV, we have:
+    # total_cached_tokens: 29184, total_prompt_tokens: 47342, total_output_tokens: 5512
 
-    # Calculate expected costs manually
-    input_tokens = len(df) * passes * 100
-    uncached_cost = (input_tokens / 1_000_000) * 0.30
-    cached_cost = (input_tokens / 1_000_000) * 0.15
-    output_cost = (len(df) * passes * 50 / 1_000_000) * 1.2
-    expected_total = uncached_cost + cached_cost + output_cost
-    expected_output = f"Estimated Cost: ${expected_total:.4f}"
+    usage = create_usage_object(prompt_tokens=47342, completion_tokens=5512, cached_tokens=29184)
 
-    # Capture the printed output
-    with CaptureOutput() as output:
-        analyze_cost(df, passes)
+    with CaptureOutput():
+        result = analyze_cost([usage])
 
-    # Assert the captured output matches the expected output
-    assert output.getvalue().strip() == expected_output
+    # Verify against the CSV values
+    assert result["total_cached_tokens"] == 29184
+    assert result["total_prompt_tokens"] == 47342
+    assert result["total_output_tokens"] == 5512
+    assert result["total_uncached_tokens"] == 18158
+    assert round(result["total_cost"], 7) == pytest.approx(0.0164394, abs=1e-6)
