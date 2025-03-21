@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.0 (2025-03-21)
+
+### Features
+
+- Add feedback for verbatim responses in ai grading evaluation ([`ae8a816`](https://github.com/markm-io/ai-essay-evaluator/commit/ae8a816e8747a7deba00c6a075d6f4a0550d63e7))
+
 ## v0.3.0 (2025-03-05)
 
 ### Features
