@@ -152,6 +152,8 @@ def generate_prompt(row, scoring_format, story_dict, rubric_text, question_text)
             "content": (
                 f"AI Grader: Evaluate student responses based on rubric. "
                 f"Your task is to assess the student's answer using the provided story, question, and rubric. "
+                f"If the student's response is a verbatim or near-verbatim copy of the provided story or prompt, "
+                f"assign a score of 0 and provide feedback indicating that copying occurred. "
                 f"Return your evaluation strictly as a JSON object with exactly {extended_system_content}. "
                 f"Do not include any additional text or commentary. Ensure that the JSON output is valid and parsable."
             ),
