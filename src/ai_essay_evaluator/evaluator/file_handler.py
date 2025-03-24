@@ -104,7 +104,7 @@ def merge_csv_files(file_paths, output_path, scoring_format, calculate_totals=Tr
 
             # Process as before...
             if file_path != file_paths[0]:
-                merge_cols = ["Local Student ID", "TeacherName"]
+                merge_cols = ["testentryid", "TeacherName"]
                 temp_cols = merge_cols + [col for col in score_columns if col in pass_df.columns]
                 temp_df = pass_df[temp_cols].copy()
 
