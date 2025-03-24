@@ -117,7 +117,7 @@ async def process_csv(
     # Merge results if required
     if passes > 1 and merge_results:
         merged_path = export_folder / f"{file_name}_merged.csv"
-        merge_csv_files(results, merged_path)
+        merge_csv_files(results, merged_path, scoring_format)
         if log:
             logger.info(f"Results merged into {merged_path}")
 
