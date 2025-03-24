@@ -107,7 +107,10 @@ async def process_with_openai(
     )
     semaphore = asyncio.Semaphore(100)
 
-    async def process_row(row):
+    async def async_log(level, msg):
+        await asyncio.to_thread(logger.log, level, msg)
+
+    async def process_row(index, row):
         async with semaphore:
             prompt = generate_prompt(row, scoring_format, stories, rubrics, question)
             try:
@@ -116,18 +119,34 @@ async def process_with_openai(
                     await progress_callback()
                 return result
             except ValidationError as e:
-                logger.error(f"Validation failed for row {row['Local Student ID']}: {e}")
+                await async_log(
+                    logging.ERROR,
+                    f"Validation failed for row index {index}, "
+                    f"Local Student ID {row.get('Local Student ID', 'N/A')}: {e}. "
+                    f"Row content: {row.to_dict()}",
+                )
                 if progress_callback:
                     await progress_callback()
                 return get_default_response(scoring_format), {}
             except Exception as e:
-                logger.error(f"Error processing row {row['Local Student ID']}: {e}")
+                await async_log(
+                    logging.ERROR,
+                    f"Error processing row index {index}, "
+                    f"Local Student ID {row.get('Local Student ID', 'N/A')}: {e}. "
+                    f"Row content: {row.to_dict()}",
+                )
                 if progress_callback:
                     await progress_callback()
                 return get_default_response(scoring_format), {}
 
-    tasks = [process_row(row) for _, row in df.iterrows()]
-    results = await asyncio.gather(*tasks)
+    batch_size = 500
+    results = []
+    for start in range(0, len(df), batch_size):
+        batch = df.iloc[start : start + batch_size]
+        tasks = [process_row(idx, row) for idx, row in batch.iterrows()]
+        for coro in asyncio.as_completed(tasks):
+            res = await coro
+            results.append(res)
 
     # Separate structured responses and usage details.
     structured_results = [res for res, usage in results]
