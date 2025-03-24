@@ -1,4 +1,5 @@
 import asyncio
+import atexit
 import json
 import logging
 import os
@@ -17,13 +18,14 @@ os.makedirs(log_directory, exist_ok=True)
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 log_file = os.path.join(log_directory, f"ai_evaluator_{timestamp}.log")
 
+# Create file handler
+file_handler = logging.FileHandler(log_file)
+file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+
 # Configure root logger
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(log_file),
-    ],
+    handlers=[file_handler],
 )
 
 # Set httpx logger to WARNING level to suppress INFO messages
@@ -31,6 +33,23 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Get your application logger
 logger = logging.getLogger(__name__)
+
+
+# Function to close the log handlers properly
+def close_logging_handlers():
+    """Close all logging handlers to ensure files are properly closed."""
+    for handler in logging.getLogger().handlers:
+        if isinstance(handler, logging.FileHandler):
+            handler.close()
+    for logger_name in logging.Logger.manager.loggerDict:
+        logger_obj = logging.getLogger(logger_name)
+        for handler in logger_obj.handlers:
+            if isinstance(handler, logging.FileHandler):
+                handler.close()
+
+
+# Register the function to run at exit
+atexit.register(close_logging_handlers)
 
 # Retry settings for handling OpenAI API errors & Pydantic validation failures
 RETRY_SETTINGS = {
