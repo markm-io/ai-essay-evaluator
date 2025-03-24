@@ -105,24 +105,26 @@ async def process_with_openai(
         timeout=30,
         max_retries=3,
     )
+    semaphore = asyncio.Semaphore(100)
 
     async def process_row(row):
-        prompt = generate_prompt(row, scoring_format, stories, rubrics, question)
-        try:
-            result = await call_openai_parse(prompt, ai_model, client, scoring_format)
-            if progress_callback:
-                await progress_callback()
-            return result
-        except ValidationError as e:
-            logger.error(f"Validation failed for row {row['Local Student ID']}: {e}")
-            if progress_callback:
-                await progress_callback()
-            return get_default_response(scoring_format), {}
-        except Exception as e:
-            logger.error(f"Error processing row {row['Local Student ID']}: {e}")
-            if progress_callback:
-                await progress_callback()
-            return get_default_response(scoring_format), {}
+        async with semaphore:
+            prompt = generate_prompt(row, scoring_format, stories, rubrics, question)
+            try:
+                result = await call_openai_parse(prompt, ai_model, client, scoring_format)
+                if progress_callback:
+                    await progress_callback()
+                return result
+            except ValidationError as e:
+                logger.error(f"Validation failed for row {row['Local Student ID']}: {e}")
+                if progress_callback:
+                    await progress_callback()
+                return get_default_response(scoring_format), {}
+            except Exception as e:
+                logger.error(f"Error processing row {row['Local Student ID']}: {e}")
+                if progress_callback:
+                    await progress_callback()
+                return get_default_response(scoring_format), {}
 
     tasks = [process_row(row) for _, row in df.iterrows()]
     results = await asyncio.gather(*tasks)
