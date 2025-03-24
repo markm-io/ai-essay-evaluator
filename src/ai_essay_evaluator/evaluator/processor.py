@@ -29,6 +29,7 @@ async def process_csv(
     question_file,
     start_time,
     show_progress=True,
+    calculate_totals=True,
 ):
     if log:
         # Configure logging to file with timestamp
@@ -110,14 +111,14 @@ async def process_csv(
             logger.error(f"Error processing with OpenAI: {e!s}", exc_info=True)
             raise
 
-        save_results(processed_df, output_path)
+        save_results(processed_df, output_path, calculate_totals)
         results.append(output_path)
         cumulative_usage.extend(usage_list)
 
     # Merge results if required
     if passes > 1 and merge_results:
         merged_path = export_folder / f"{file_name}_merged.csv"
-        merge_csv_files(results, merged_path, scoring_format)
+        merge_csv_files(results, merged_path, scoring_format, calculate_totals)
         if log:
             logger.info(f"Results merged into {merged_path}")
 

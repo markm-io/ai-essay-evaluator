@@ -26,6 +26,7 @@ def grader(
     passes: int = typer.Option(1, help="Number of times to process the CSV"),
     merge_results: bool = typer.Option(True, help="Merge results if multiple passes"),
     show_progress: bool = typer.Option(True, help="Display progress during processing"),
+    calculate_totals: bool = typer.Option(True, help="Calculate scoring totals for each student"),
 ):
     start_time = time.time()
 
@@ -58,6 +59,7 @@ def grader(
             question_file,
             start_time,
             show_progress,
+            calculate_totals,
         )
     )
 

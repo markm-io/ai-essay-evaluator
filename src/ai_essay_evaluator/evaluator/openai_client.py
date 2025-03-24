@@ -117,7 +117,7 @@ async def process_with_openai(
                 result = await call_openai_parse(prompt, ai_model, client, scoring_format)
                 if progress_callback:
                     await progress_callback()
-                return result
+                return index, result
             except ValidationError as e:
                 await async_log(
                     logging.ERROR,
@@ -127,7 +127,7 @@ async def process_with_openai(
                 )
                 if progress_callback:
                     await progress_callback()
-                return get_default_response(scoring_format), {}
+                return index, (get_default_response(scoring_format), {})
             except Exception as e:
                 await async_log(
                     logging.ERROR,
@@ -137,7 +137,7 @@ async def process_with_openai(
                 )
                 if progress_callback:
                     await progress_callback()
-                return get_default_response(scoring_format), {}
+                return index, (get_default_response(scoring_format), {})
 
     batch_size = 500
     results = []
@@ -145,14 +145,21 @@ async def process_with_openai(
         batch = df.iloc[start : start + batch_size]
         tasks = [process_row(idx, row) for idx, row in batch.iterrows()]
         for coro in asyncio.as_completed(tasks):
-            res = await coro
-            results.append(res)
+            idx, res = await coro
+            results.append((idx, res))
 
-    # Separate structured responses and usage details.
-    structured_results = [res for res, usage in results]
-    usage_list = [usage for res, usage in results if usage]
+    # Build a dictionary mapping each original index to its structured result and gather usage details
+    structured_results_dict = {}
+    usage_list = []
+    for idx, (structured, usage) in results:
+        structured_results_dict[idx] = structured
+        if usage:
+            usage_list.append(usage)
 
-    structured_df = pd.DataFrame(structured_results)
+    # Create a DataFrame from the structured results and reindex it to match the original DataFrame order
+    structured_df = pd.DataFrame.from_dict(structured_results_dict, orient="index")
+    structured_df = structured_df.reindex(df.index)
+
     return pd.concat([df, structured_df], axis=1), usage_list
 
 
