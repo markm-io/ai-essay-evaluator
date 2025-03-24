@@ -136,5 +136,7 @@ async def process_csv(
 
             # Display cost summary
             typer.echo(f"\nProcessed {total_rows} essays in {duration:.2f} seconds")
-            typer.echo(f"Total tokens: {cost_data.get('total_tokens', 0):,}")
+            typer.echo(
+                f"Total tokens: {cost_data.get('total_cached_tokens', 0) + cost_data.get('total_uncached_tokens', 0):,}"
+            )
             typer.echo(f"Estimated cost: ${cost_data.get('total_cost', 0):.4f}")
