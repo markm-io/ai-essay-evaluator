@@ -10,6 +10,17 @@ def normalize_text(text):
     if not isinstance(text, str):
         return text
 
+    # Replace specific problematic character sequences
+    # Replace specific problematic character sequences
+    replacements = [
+        ("\u201a\u00c4\u00f4", "'"),  # Smart apostrophe sequence
+        ("\u2019", "'"),  # Right single quotation mark
+        ("\u2018", "'"),  # Left single quotation mark
+    ]
+
+    for old, new in replacements:
+        text = text.replace(old, new)
+
     # Normalize other Unicode characters to their closest ASCII equivalent
     text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
