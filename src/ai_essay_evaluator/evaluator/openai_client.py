@@ -1,7 +1,9 @@
 import asyncio
 import json
 import logging
+import os
 import re
+from datetime import datetime
 
 import openai
 import pandas as pd
@@ -9,8 +11,26 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging to file with timestamp
+log_directory = "logs"
+os.makedirs(log_directory, exist_ok=True)
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+log_file = os.path.join(log_directory, f"ai_evaluator_{timestamp}.log")
+
+# Configure root logger
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(log_file),
+    ],
+)
+
+# Set httpx logger to WARNING level to suppress INFO messages
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+# Get your application logger
+logger = logging.getLogger(__name__)
 
 # Retry settings for handling OpenAI API errors & Pydantic validation failures
 RETRY_SETTINGS = {
@@ -66,7 +86,7 @@ async def call_openai_parse(messages: list[dict[str, str]], model: str, client: 
     if remaining_requests <= 0:
         reset_str = headers.get("x-ratelimit-reset-requests", "1s")
         wait_time = parse_reset_time(reset_str)
-        logging.info(f"Rate limit for requests exhausted. Sleeping for {wait_time} seconds...")
+        logger.info(f"Rate limit for requests exhausted. Sleeping for {wait_time} seconds...")
         await asyncio.sleep(wait_time)
 
     # You can add similar checks for tokens using x-ratelimit-remaining-tokens if needed.
@@ -76,7 +96,9 @@ async def call_openai_parse(messages: list[dict[str, str]], model: str, client: 
     return structured, usage
 
 
-async def process_with_openai(df, ai_model, api_key, stories, rubrics, question, scoring_format, openai_project=None):
+async def process_with_openai(
+    df, ai_model, api_key, stories, rubrics, question, scoring_format, openai_project, progress_callback=None
+):
     client = AsyncOpenAI(
         api_key=api_key,
         project=openai_project,
@@ -87,12 +109,19 @@ async def process_with_openai(df, ai_model, api_key, stories, rubrics, question,
     async def process_row(row):
         prompt = generate_prompt(row, scoring_format, stories, rubrics, question)
         try:
-            return await call_openai_parse(prompt, ai_model, client, scoring_format)
+            result = await call_openai_parse(prompt, ai_model, client, scoring_format)
+            if progress_callback:
+                await progress_callback()
+            return result
         except ValidationError as e:
-            logging.error(f"Validation failed for row {row['Local Student ID']}: {e}")
+            logger.error(f"Validation failed for row {row['Local Student ID']}: {e}")
+            if progress_callback:
+                await progress_callback()
             return get_default_response(scoring_format), {}
         except Exception as e:
-            logging.error(f"Error processing row {row['Local Student ID']}: {e}")
+            logger.error(f"Error processing row {row['Local Student ID']}: {e}")
+            if progress_callback:
+                await progress_callback()
             return get_default_response(scoring_format), {}
 
     tasks = [process_row(row) for _, row in df.iterrows()]
@@ -174,7 +203,7 @@ def extract_structured_response(response, scoring_format):
         else:
             return StandardScoringResponse(**structured_output).model_dump()
     except ValidationError as e:
-        logging.error(f"Validation failed: {e}")
+        logger.error(f"Validation failed: {e}")
         return get_default_response(scoring_format)
 
 

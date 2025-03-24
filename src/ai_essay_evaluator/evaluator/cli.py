@@ -25,6 +25,7 @@ def grader(
     cost_analysis: bool = typer.Option(True, help="Perform cost analysis"),
     passes: int = typer.Option(1, help="Number of times to process the CSV"),
     merge_results: bool = typer.Option(True, help="Merge results if multiple passes"),
+    show_progress: bool = typer.Option(True, help="Display progress during processing"),
 ):
     start_time = time.time()
 
@@ -36,6 +37,8 @@ def grader(
             "short": "ft:gpt-4o-mini-2024-07-18:securehst::B79Kzt5H",
         }
         ai_model = model_mapping.get(scoring_format)
+
+    typer.echo(f"Starting essay evaluation with {scoring_format} format...")
 
     asyncio.run(
         process_csv(
@@ -53,6 +56,8 @@ def grader(
             story_folder,
             rubric_folder,
             question_file,
+            start_time,
+            show_progress,
         )
     )
 
