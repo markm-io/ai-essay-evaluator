@@ -1,31 +1,6 @@
-import unicodedata
-
 import pandas as pd
 
-
-def normalize_text(text):
-    """
-    Normalize text to handle encoding issues with special characters.
-    """
-    if not isinstance(text, str):
-        return text
-
-    # Replace specific problematic character sequences
-    # Replace specific problematic character sequences
-    replacements = [
-        ("\u201a\u00c4\u00f4", "'"),  # Smart apostrophe sequence
-        ("\u2019", "'"),  # Right single quotation mark
-        ("\u2018", "'"),  # Left single quotation mark
-    ]
-
-    for old, new in replacements:
-        text = text.replace(old, new)
-
-    # Normalize other Unicode characters to their closest ASCII equivalent
-    text = unicodedata.normalize("NFKD", text)
-    text = "".join(c for c in text if not unicodedata.combining(c))
-
-    return text
+from .utils import normalize_text
 
 
 def save_results(df, output_path, calculate_totals=True):
@@ -154,6 +129,42 @@ def merge_csv_files(file_paths, output_path, scoring_format, calculate_totals=Tr
     for col in base_df.columns:
         if base_df[col].dtype == "object":
             base_df[col] = base_df[col].apply(normalize_text)
+
+    # Reorder columns to place total_score after the "Tested Language" column
+    if "total_score" in base_df.columns:
+        # Get a list of all columns
+        cols = list(base_df.columns)
+
+        # Remove total_score from current position
+        cols.remove("total_score")
+
+        # Try to find "Tested Language" column
+        if "Tested Language" in cols:
+            # Insert after Tested Language column
+            tested_lang_pos = cols.index("Tested Language")
+            cols.insert(tested_lang_pos + 1, "total_score")
+        else:
+            # Fall back to the previous approach - after ID columns
+            id_cols = []
+            for col in cols:
+                if (
+                    col.lower() in ["testentryid", "id", "student_id", "local student id"]
+                    or "name" in col.lower()
+                    or col == "TeacherName"
+                ):
+                    id_cols.append(col)
+
+            # Find the position after the last ID column
+            insertion_point = 0
+            for col in id_cols:
+                pos = cols.index(col) + 1
+                insertion_point = max(insertion_point, pos)
+
+            # Insert total_score at the determined position
+            cols.insert(insertion_point, "total_score")
+
+        # Reorder the DataFrame
+        base_df = base_df[cols]
 
     # Save the merged dataframe with explicit utf-8 encoding
     base_df.to_csv(output_path, index=False, encoding="utf-8")

@@ -363,6 +363,12 @@ async def test_process_csv_without_calculate_totals(temp_files):
             calculate_totals=False,
         )
 
-        # Verify save_results and merge_csv_files were called with calculate_totals=False
-        mock_save.assert_called_with(processed_df, mock_save.call_args[0][1], False)
-        mock_merge.assert_called_with(mock_merge.call_args[0][0], mock_merge.call_args[0][1], "numeric", False)
+        # Verify save_results was called with calculate_totals=False
+        # Check the last call's arguments
+        _, _, calculate_totals_arg = mock_save.call_args[0]
+        assert calculate_totals_arg is False
+
+        # Verify merge_csv_files was called with calculate_totals=False
+        # Check the third argument
+        _, _, _, calculate_totals_arg = mock_merge.call_args[0]
+        assert calculate_totals_arg is False

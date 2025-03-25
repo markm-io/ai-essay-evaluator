@@ -9,7 +9,7 @@ import typer
 from .cost_analysis import analyze_cost
 from .file_handler import merge_csv_files, save_results
 from .openai_client import process_with_openai
-from .utils import read_text_files, validate_csv
+from .utils import normalize_response_text, read_text_files, validate_csv
 
 
 async def process_csv(
@@ -58,8 +58,15 @@ async def process_csv(
     export_folder.mkdir(parents=True, exist_ok=True)
 
     # Read and validate CSV
-    df = pd.read_csv(input_file)
+    df = pd.read_csv(input_file, encoding="utf-8")
     validate_csv(df)
+
+    # Normalize the Student Constructed Response text
+    if "Student Constructed Response" in df.columns:
+        df = normalize_response_text(df)
+        if log:
+            logger.info("Normalized Student Constructed Response text")
+
     total_rows = len(df)
 
     # Read additional data
@@ -110,6 +117,8 @@ async def process_csv(
         except Exception as e:
             logger.error(f"Error processing with OpenAI: {e!s}", exc_info=True)
             raise
+
+        processed_df = normalize_response_text(processed_df)
 
         save_results(processed_df, output_path, calculate_totals)
         results.append(output_path)

@@ -25,6 +25,7 @@ classifiers = [
 ]
 
 dependencies = [
+    "ftfy>=6.3.1",
     "openai>=1.65.3",
     "pandas>=2.2.3",
     "pydantic>=2.10.6",
