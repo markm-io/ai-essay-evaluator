@@ -1,10 +1,7 @@
 import asyncio
-import atexit
 import json
 import logging
-import os
 import re
-from datetime import datetime
 
 import openai
 import pandas as pd
@@ -12,44 +9,8 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-# Configure logging to file with timestamp
-log_directory = "logs"
-os.makedirs(log_directory, exist_ok=True)
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-log_file = os.path.join(log_directory, f"ai_evaluator_{timestamp}.log")
-
-# Create file handler
-file_handler = logging.FileHandler(log_file)
-file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-
-# Configure root logger
-logging.basicConfig(
-    level=logging.INFO,
-    handlers=[file_handler],
-)
-
-# Set httpx logger to WARNING level to suppress INFO messages
-logging.getLogger("httpx").setLevel(logging.WARNING)
-
 # Get your application logger
 logger = logging.getLogger(__name__)
-
-
-# Function to close the log handlers properly
-def close_logging_handlers():
-    """Close all logging handlers to ensure files are properly closed."""
-    for handler in logging.getLogger().handlers:
-        if isinstance(handler, logging.FileHandler):
-            handler.close()
-    for logger_name in logging.Logger.manager.loggerDict:
-        logger_obj = logging.getLogger(logger_name)
-        for handler in logger_obj.handlers:
-            if isinstance(handler, logging.FileHandler):
-                handler.close()
-
-
-# Register the function to run at exit
-atexit.register(close_logging_handlers)
 
 # Retry settings for handling OpenAI API errors & Pydantic validation failures
 RETRY_SETTINGS = {
@@ -87,7 +48,9 @@ def parse_reset_time(reset_str: str) -> int:
 
 
 @retry(**RETRY_SETTINGS)
-async def call_openai_parse(messages: list[dict[str, str]], model: str, client: AsyncOpenAI, scoring_format: str):
+async def call_openai_parse(
+    messages: list[dict[str, str]], model: str, client: AsyncOpenAI, scoring_format: str, async_logger=None
+):
     response_format = ExtendedScoringResponse if scoring_format == "extended" else StandardScoringResponse
     max_completion_tokens = 2000
 
@@ -105,18 +68,28 @@ async def call_openai_parse(messages: list[dict[str, str]], model: str, client: 
     if remaining_requests <= 0:
         reset_str = headers.get("x-ratelimit-reset-requests", "1s")
         wait_time = parse_reset_time(reset_str)
-        logger.info(f"Rate limit for requests exhausted. Sleeping for {wait_time} seconds...")
+        if async_logger:
+            await async_logger.log(
+                logging.INFO, f"Rate limit for requests exhausted. Sleeping for {wait_time} seconds...", module=__name__
+            )
         await asyncio.sleep(wait_time)
 
-    # You can add similar checks for tokens using x-ratelimit-remaining-tokens if needed.
-
-    structured = extract_structured_response(response, scoring_format)
+    structured = extract_structured_response(response, scoring_format, async_logger)
     usage = response.usage
     return structured, usage
 
 
 async def process_with_openai(
-    df, ai_model, api_key, stories, rubrics, question, scoring_format, openai_project, progress_callback=None
+    df,
+    ai_model,
+    api_key,
+    stories,
+    rubrics,
+    question,
+    scoring_format,
+    openai_project,
+    progress_callback=None,
+    async_logger=None,
 ):
     client = AsyncOpenAI(
         api_key=api_key,
@@ -126,34 +99,36 @@ async def process_with_openai(
     )
     semaphore = asyncio.Semaphore(100)
 
-    async def async_log(level, msg):
-        await asyncio.to_thread(logger.log, level, msg)
-
     async def process_row(index, row):
         async with semaphore:
             prompt = generate_prompt(row, scoring_format, stories, rubrics, question)
             try:
-                result = await call_openai_parse(prompt, ai_model, client, scoring_format)
+                result = await call_openai_parse(prompt, ai_model, client, scoring_format, async_logger)
                 if progress_callback:
                     await progress_callback()
                 return index, result
             except ValidationError as e:
-                await async_log(
-                    logging.ERROR,
-                    f"Validation failed for row index {index}, "
-                    f"Local Student ID {row.get('Local Student ID', 'N/A')}: {e}. "
-                    f"Row content: {row.to_dict()}",
-                )
+                if async_logger:
+                    await async_logger.log(
+                        logging.ERROR,
+                        f"Validation failed for row index {index}, "
+                        f"Local Student ID {row.get('Local Student ID', 'N/A')}: {e}. "
+                        f"Row content: {row.to_dict()}",
+                        module=__name__,
+                    )
                 if progress_callback:
                     await progress_callback()
                 return index, (get_default_response(scoring_format), {})
             except Exception as e:
-                await async_log(
-                    logging.ERROR,
-                    f"Error processing row index {index}, "
-                    f"Local Student ID {row.get('Local Student ID', 'N/A')}: {e}. "
-                    f"Row content: {row.to_dict()}",
-                )
+                if async_logger:
+                    await async_logger.log(
+                        logging.ERROR,
+                        f"Error processing row index {index}, "
+                        f"Local Student ID {row.get('Local Student ID', 'N/A')}: {e}. "
+                        f"Row content: {row.to_dict()}",
+                        module=__name__,
+                        exc_info=True,
+                    )
                 if progress_callback:
                     await progress_callback()
                 return index, (get_default_response(scoring_format), {})
@@ -240,7 +215,7 @@ def generate_prompt(row, scoring_format, story_dict, rubric_text, question_text)
 
 
 @retry(**RETRY_SETTINGS)
-def extract_structured_response(response, scoring_format):
+def extract_structured_response(response, scoring_format, async_logger=None):
     response_text = response.choices[0].message.content.strip()
 
     try:
@@ -250,7 +225,9 @@ def extract_structured_response(response, scoring_format):
         else:
             return StandardScoringResponse(**structured_output).model_dump()
     except ValidationError as e:
-        logger.error(f"Validation failed: {e}")
+        if async_logger:
+            # Use synchronous logging since this is not an async function
+            logging.ERROR(f"Validation failed: {e}")
         return get_default_response(scoring_format)
 
 
