@@ -1,9 +1,12 @@
 # Changelog
 
+## v0.6.0 (2025-03-25)
+
 ## v0.5.0 (2025-03-25)
 
 ### Features
 
+- Implement asynchronous logging with asynclogger and integrate into csv processing ([`c84b7af`](https://github.com/markm-io/ai-essay-evaluator/commit/c84b7af81e2aa2cbbdbde263d3bba91724bbdeb9))
 - Refactor text normalization and enhance csv handling with column reordering for total_score ([`40dc9fc`](https://github.com/markm-io/ai-essay-evaluator/commit/40dc9fcbf46055e4ff4a029b5f6c46dd784a72be))
 - Enhance logging setup to ensure proper file handler closure on exit ([`eb8d049`](https://github.com/markm-io/ai-essay-evaluator/commit/eb8d049201d119703d6a43137615bd3e4046d04e))
 - Add option to calculate scoring totals and enhance csv handling with text normalization ([`e05fd32`](https://github.com/markm-io/ai-essay-evaluator/commit/e05fd32b14f8c9cd6d2a6b94f3e3770af8cd4ae7))
