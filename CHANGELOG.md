@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.5.0 (2025-03-25)
+
+### Features
+
+- Refactor text normalization and enhance csv handling with column reordering for total_score ([`40dc9fc`](https://github.com/markm-io/ai-essay-evaluator/commit/40dc9fcbf46055e4ff4a029b5f6c46dd784a72be))
+- Enhance logging setup to ensure proper file handler closure on exit ([`eb8d049`](https://github.com/markm-io/ai-essay-evaluator/commit/eb8d049201d119703d6a43137615bd3e4046d04e))
+- Add option to calculate scoring totals and enhance csv handling with text normalization ([`e05fd32`](https://github.com/markm-io/ai-essay-evaluator/commit/e05fd32b14f8c9cd6d2a6b94f3e3770af8cd4ae7))
+- Enhance error logging and process rows in batches for improved performance ([`7a059d3`](https://github.com/markm-io/ai-essay-evaluator/commit/7a059d3338b783b5175e45c409b12603877dd01f))
+- Implement semaphore for concurrent processing in openai client ([`63e9d5f`](https://github.com/markm-io/ai-essay-evaluator/commit/63e9d5f8abbfd39009053495ade3bd61cdc731c6))
+- Add progress display and logging enhancements in essay evaluation process ([`db372e6`](https://github.com/markm-io/ai-essay-evaluator/commit/db372e6e5606ba90c833547bb2e231d42230fde9))
+
+### Bug fixes
+
+- Add character replacement for problematic sequences in text normalization ([`f7978dc`](https://github.com/markm-io/ai-essay-evaluator/commit/f7978dcd2153bac4148303208dabac3baac0d855))
+- Update merge columns in file handler to use correct identifiers ([`c7db5be`](https://github.com/markm-io/ai-essay-evaluator/commit/c7db5be7228045ed913c0a97f395056f8a2a4202))
+- Enhance csv merging functionality to preserve scoring format and pass information ([`ab3bb90`](https://github.com/markm-io/ai-essay-evaluator/commit/ab3bb9013027a5cb2720ca68a1bcf9ffff61cc0c))
+- Update token cost display to include both cached and uncached tokens ([`079334b`](https://github.com/markm-io/ai-essay-evaluator/commit/079334bcb46f21990665b405e294920ccaf893ad))
+
 ## v0.4.0 (2025-03-21)
 
 ### Features
