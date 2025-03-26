@@ -2,22 +2,37 @@ import asyncio
 import json
 import logging
 import re
+import time
 
 import openai
 import pandas as pd
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import before_sleep_log, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 # Get your application logger
 logger = logging.getLogger(__name__)
 
-# Retry settings for handling OpenAI API errors & Pydantic validation failures
+# Enhanced retry settings with better backoff strategy
 RETRY_SETTINGS = {
-    "stop": stop_after_attempt(5),
-    "wait": wait_exponential(multiplier=1, min=2, max=10),
-    "retry": retry_if_exception_type((openai.OpenAIError, ValidationError)),
+    "stop": stop_after_attempt(7),  # Increased from 5
+    "wait": wait_exponential(multiplier=1.5, min=2, max=30),  # Increased max wait time
+    "retry": retry_if_exception_type((openai.OpenAIError, ValidationError, asyncio.TimeoutError, json.JSONDecodeError)),
+    "before_sleep": before_sleep_log(logger, logging.INFO),
 }
+
+
+# Global rate limiting tracking
+class RateLimitTracker:
+    def __init__(self):
+        self.request_window_start = time.time()
+        self.requests_in_window = 0
+        self.tokens_in_window = 0
+        self.max_requests_per_minute = 5000  # Updated to 5000 RPM
+        self.max_tokens_per_minute = 2000000  # 2M TPM
+
+
+rate_tracker = RateLimitTracker()
 
 
 class ExtendedScoringResponse(BaseModel):
@@ -47,36 +62,63 @@ def parse_reset_time(reset_str: str) -> int:
     return minutes * 60 + seconds
 
 
+async def adaptive_rate_limit(async_logger=None):
+    """Implement adaptive rate limiting based on time window tracking"""
+    current_time = time.time()
+
+    # Reset window counter if a minute has passed
+    if current_time - rate_tracker.request_window_start >= 60:
+        rate_tracker.request_window_start = current_time
+        rate_tracker.requests_in_window = 0
+
+    # Preemptive rate limiting based on fixed limits
+    rate_tracker.requests_in_window += 1
+
+    # Using fixed limits: 5000 requests per minute, leaving some buffer
+    if rate_tracker.requests_in_window > 4800:  # 200 request buffer
+        wait_time = 60 - (current_time - rate_tracker.request_window_start) + 1
+        if wait_time > 0:
+            if async_logger:
+                await async_logger.log(
+                    logging.INFO, f"Approaching rate limit. Pausing for {wait_time:.2f} seconds", module=__name__
+                )
+            await asyncio.sleep(wait_time)
+            rate_tracker.request_window_start = time.time()
+            rate_tracker.requests_in_window = 0
+
+
 @retry(**RETRY_SETTINGS)
 async def call_openai_parse(
-    messages: list[dict[str, str]], model: str, client: AsyncOpenAI, scoring_format: str, async_logger=None
+    messages: list[dict[str, str]],
+    model: str,
+    client: AsyncOpenAI,
+    scoring_format: str,
+    async_logger=None,
+    student_id: str = "Unknown",
 ):
     response_format = ExtendedScoringResponse if scoring_format == "extended" else StandardScoringResponse
     max_completion_tokens = 2000
 
-    response = await client.beta.chat.completions.parse(
-        model=model,
-        messages=messages,
-        temperature=0,
-        response_format=response_format,
-        max_tokens=max_completion_tokens,
-    )
+    # Apply adaptive rate limiting before making request
+    await adaptive_rate_limit(async_logger)
 
-    # Rate limiting check based on request limits:
-    headers = getattr(response, "headers", {})  # Assume headers are available on the response
-    remaining_requests = int(headers.get("x-ratelimit-remaining-requests", 1))
-    if remaining_requests <= 0:
-        reset_str = headers.get("x-ratelimit-reset-requests", "1s")
-        wait_time = parse_reset_time(reset_str)
+    try:
+        response = await client.beta.chat.completions.parse(
+            model=model,
+            messages=messages,
+            temperature=0,
+            response_format=response_format,
+            max_tokens=max_completion_tokens,
+        )
+
+        structured = extract_structured_response(response, scoring_format, async_logger, student_id)
+        usage = response.usage
+        return structured, usage
+
+    except Exception as e:
         if async_logger:
-            await async_logger.log(
-                logging.INFO, f"Rate limit for requests exhausted. Sleeping for {wait_time} seconds...", module=__name__
-            )
-        await asyncio.sleep(wait_time)
-
-    structured = extract_structured_response(response, scoring_format, async_logger)
-    usage = response.usage
-    return structured, usage
+            await async_logger.log(logging.ERROR, f"OpenAI API error for student {student_id}: {e!s}", module=__name__)
+        raise
 
 
 async def process_with_openai(
@@ -94,53 +136,77 @@ async def process_with_openai(
     client = AsyncOpenAI(
         api_key=api_key,
         project=openai_project,
-        timeout=30,
-        max_retries=3,
+        timeout=60,  # Increased timeout
+        max_retries=5,  # Increased retries
     )
-    semaphore = asyncio.Semaphore(100)
+
+    # Reduce concurrency to prevent overwhelming the API
+    semaphore = asyncio.Semaphore(30)  # Reduced from 100
 
     async def process_row(index, row):
+        student_id = row.get("Local Student ID", "N/A")
         async with semaphore:
             prompt = generate_prompt(row, scoring_format, stories, rubrics, question)
             try:
-                result = await call_openai_parse(prompt, ai_model, client, scoring_format, async_logger)
+                result = await call_openai_parse(prompt, ai_model, client, scoring_format, async_logger, student_id)
                 if progress_callback:
                     await progress_callback()
                 return index, result
-            except ValidationError as e:
-                if async_logger:
-                    await async_logger.log(
-                        logging.ERROR,
-                        f"Validation failed for row index {index}, "
-                        f"Local Student ID {row.get('Local Student ID', 'N/A')}: {e}. "
-                        f"Row content: {row.to_dict()}",
-                        module=__name__,
-                    )
-                if progress_callback:
-                    await progress_callback()
-                return index, (get_default_response(scoring_format), {})
             except Exception as e:
                 if async_logger:
                     await async_logger.log(
                         logging.ERROR,
-                        f"Error processing row index {index}, "
-                        f"Local Student ID {row.get('Local Student ID', 'N/A')}: {e}. "
-                        f"Row content: {row.to_dict()}",
+                        f"Failed to process student {student_id} after all retries: {e!s}",
                         module=__name__,
                         exc_info=True,
                     )
-                if progress_callback:
-                    await progress_callback()
-                return index, (get_default_response(scoring_format), {})
+                # Instead of returning default response immediately, try one more time with a backup approach
+                try:
+                    # Brief pause before retry
+                    await asyncio.sleep(2)
+                    # Simplify the prompt if possible
+                    simplified_prompt = simplify_prompt(prompt)
+                    result = await call_openai_parse(
+                        simplified_prompt, ai_model, client, scoring_format, async_logger, student_id
+                    )
+                    if progress_callback:
+                        await progress_callback()
+                    return index, result
+                except Exception as e2:
+                    if async_logger:
+                        await async_logger.log(
+                            logging.ERROR,
+                            f"Backup approach failed for student {student_id}: {e2!s}",
+                            module=__name__,
+                        )
+                    if progress_callback:
+                        await progress_callback()
+                    return index, (get_default_response(scoring_format), {})
 
-    batch_size = 500
+    # Use smaller batches for better throughput management
+    batch_size = 100  # Reduced from 500
     results = []
     for start in range(0, len(df), batch_size):
         batch = df.iloc[start : start + batch_size]
         tasks = [process_row(idx, row) for idx, row in batch.iterrows()]
+        batch_results = []
         for coro in asyncio.as_completed(tasks):
-            idx, res = await coro
-            results.append((idx, res))
+            try:
+                idx, res = await coro
+                batch_results.append((idx, res))
+            except Exception as e:
+                if async_logger:
+                    await async_logger.log(
+                        logging.ERROR,
+                        f"Unexpected error in batch processing: {e!s}",
+                        module=__name__,
+                        exc_info=True,
+                    )
+
+        results.extend(batch_results)
+
+        # Add a brief pause between batches to prevent rate limiting
+        await asyncio.sleep(1)
 
     # Build a dictionary mapping each original index to its structured result and gather usage details
     structured_results_dict = {}
@@ -154,10 +220,91 @@ async def process_with_openai(
     structured_df = pd.DataFrame.from_dict(structured_results_dict, orient="index")
     structured_df = structured_df.reindex(df.index)
 
+    # Verify no missing or invalid data
+    if structured_df.isnull().any().any():
+        if async_logger:
+            await async_logger.log(
+                logging.WARNING,
+                f"Found {structured_df.isnull().sum().sum()} missing values in results",
+                module=__name__,
+            )
+        # Fill missing values with default responses
+        for idx in structured_df.index[structured_df.isnull().any(axis=1)]:
+            structured_df.loc[idx] = get_default_response(scoring_format)
+
     return pd.concat([df, structured_df], axis=1), usage_list
 
 
+def simplify_prompt(messages):
+    """Create a simpler version of the prompt to increase chances of successful processing"""
+    system_msg = messages[0]
+    user_msg = messages[1]
+
+    # Parse the user content if it's JSON
+    try:
+        if isinstance(user_msg["content"], str):
+            content = json.loads(user_msg["content"])
+        else:
+            content = user_msg["content"]
+
+        # Create a simplified content with just essential elements
+        simplified_content = {
+            "grade_level": content.get("grade_level", ""),
+            "question": content.get("question", ""),
+            "rubric": content.get("rubric", ""),
+            "student_response": content.get("student_response", ""),
+        }
+
+        # Create simplified messages
+        return [system_msg, {"role": "user", "content": json.dumps(simplified_content, ensure_ascii=False)}]
+    except Exception:
+        # If parsing fails, return original messages
+        return messages
+
+
+def extract_structured_response(response, scoring_format, async_logger=None, student_id="Unknown"):
+    response_text = response.choices[0].message.content.strip()
+
+    # Check for empty responses
+    if not response_text:
+        if async_logger:
+            logging.ERROR(f"Empty response from API for student {student_id}")
+        return get_default_response(scoring_format)
+
+    try:
+        # Check if response is already a dict (might happen with some API versions)
+        if isinstance(response_text, dict):
+            structured_output = response_text
+        else:
+            # Try to parse JSON - handle both proper JSON and cases where there's extra content
+            try:
+                structured_output = json.loads(response_text)
+            except json.JSONDecodeError as err:
+                # Try to extract just the JSON part using regex
+                json_match = re.search(r"(\{.*\})", response_text, re.DOTALL)
+                if json_match:
+                    try:
+                        structured_output = json.loads(json_match.group(1))
+                    except Exception as e2:
+                        raise ValueError("Could not extract valid JSON") from e2
+                else:
+                    raise ValueError("Response does not contain valid JSON") from err
+
+        # Validate with appropriate model
+        if scoring_format == "extended":
+            return ExtendedScoringResponse(**structured_output).model_dump()
+        else:
+            return StandardScoringResponse(**structured_output).model_dump()
+    except (ValidationError, ValueError, json.JSONDecodeError) as e:
+        if async_logger:
+            logging.ERROR(
+                f"Response validation failed for student {student_id}: {e}, Response: {response_text[:100]}..."
+            )
+        return get_default_response(scoring_format)
+
+
 def generate_prompt(row, scoring_format, story_dict, rubric_text, question_text):
+    # Original function implementation unchanged
     student_response = row["Student Constructed Response"]
     if scoring_format == "extended":
         extended_system_content = (
@@ -214,30 +361,13 @@ def generate_prompt(row, scoring_format, story_dict, rubric_text, question_text)
     return messages
 
 
-@retry(**RETRY_SETTINGS)
-def extract_structured_response(response, scoring_format, async_logger=None):
-    response_text = response.choices[0].message.content.strip()
-
-    try:
-        structured_output = json.loads(response_text)
-        if scoring_format == "extended":
-            return ExtendedScoringResponse(**structured_output).model_dump()
-        else:
-            return StandardScoringResponse(**structured_output).model_dump()
-    except ValidationError as e:
-        if async_logger:
-            # Use synchronous logging since this is not an async function
-            logging.ERROR(f"Validation failed: {e}")
-        return get_default_response(scoring_format)
-
-
 def get_default_response(scoring_format):
     if scoring_format == "extended":
         return {
             "idea_development_score": 0,
-            "idea_development_feedback": "Invalid response",
+            "idea_development_feedback": "Error processing response. Please review manually.",
             "language_conventions_score": 0,
-            "language_conventions_feedback": "Invalid response",
+            "language_conventions_feedback": "Error processing response. Please review manually.",
         }
     else:
-        return {"score": 0, "feedback": "Invalid response"}
+        return {"score": 0, "feedback": "Error processing response. Please review manually."}
