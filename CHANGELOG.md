@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.7.0 (2025-03-26)
+
+### Features
+
+- Enhance openai client with adaptive rate limiting and improved error handling ([`aadaad3`](https://github.com/markm-io/ai-essay-evaluator/commit/aadaad398913564634bd15ff32a621b7a9a5b535))
+- Enhance cost analysis by improving token calculation and adding detailed tests ([`753b9ea`](https://github.com/markm-io/ai-essay-evaluator/commit/753b9ea4f09cc5820719704cae104632601c2bd7))
+
 ## v0.6.0 (2025-03-25)
 
 ## v0.5.0 (2025-03-25)
