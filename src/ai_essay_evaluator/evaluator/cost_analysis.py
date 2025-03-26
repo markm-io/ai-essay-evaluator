@@ -17,25 +17,26 @@ def analyze_cost(usage_list):
 
     Returns a dictionary with token counts and computed costs.
     """
+
     total_cached_tokens = 0
     total_prompt_tokens = 0
     total_output_tokens = 0
+    total_uncached_tokens = 0
 
     for usage in usage_list:
-        # Access attributes directly from the pydantic model
-        prompt_tokens = usage.prompt_tokens
-        completion_tokens = usage.completion_tokens
+        total_prompt_tokens += usage.prompt_tokens
+        total_output_tokens += usage.completion_tokens
 
-        # For nested attributes like cached_tokens, check if the attribute exists
-        cached_tokens = 0
-        if hasattr(usage, "prompt_tokens_details") and usage.prompt_tokens_details:
-            cached_tokens = getattr(usage.prompt_tokens_details, "cached_tokens", 0)
+        if hasattr(usage, "prompt_tokens_details") and hasattr(usage.prompt_tokens_details, "cached_tokens"):
+            cached_tokens = usage.prompt_tokens_details.cached_tokens
+            if isinstance(cached_tokens, int):
+                total_cached_tokens += cached_tokens
+            else:
+                total_cached_tokens += 0
+        else:
+            cached_tokens = 0
 
-        total_cached_tokens += cached_tokens
-        total_prompt_tokens += prompt_tokens
-        total_output_tokens += completion_tokens
-
-    total_uncached_tokens = total_prompt_tokens - total_cached_tokens
+        total_uncached_tokens += usage.prompt_tokens - cached_tokens
 
     cost_uncached = (total_uncached_tokens / 1_000_000) * 0.30
     cost_cached = (total_cached_tokens / 1_000_000) * 0.15
