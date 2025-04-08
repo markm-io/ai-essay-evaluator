@@ -146,6 +146,7 @@ async def process_with_openai(
     async def process_row(index, row):
         student_id = str(int(row.get("Local Student ID")))
         student_response = row["Student Constructed Response"]
+        student_language = row["Tested Language"]
 
         # Check if response is blank
         if not student_response or student_response.strip() == "":
@@ -158,17 +159,30 @@ async def process_with_openai(
             if progress_callback:
                 await progress_callback()
             # Return default response for blank submissions
-            return index, (
-                {
-                    "idea_development_score": 0,
-                    "idea_development_feedback": "No Student Response Provided",
-                    "language_conventions_score": 0,
-                    "language_conventions_feedback": "Please note that if a response receives a score point 0 in the "
-                    "Idea Development trait, the response will also earn 0 points in "
-                    "the Conventions trait.",
-                },
-                {},
-            )
+            if student_language == "Spanish":
+                return index, (
+                    {
+                        "idea_development_score": 0,
+                        "idea_development_feedback": "No se proporcionó respuesta del estudiante",
+                        "language_conventions_score": 0,
+                        "language_conventions_feedback": "Tenga en cuenta que si una respuesta recibe un puntaje "
+                        "de 0 en el rasgo de Desarrollo de ideas, la respuesta también "
+                        "obtendrá 0 puntos en el rasgo de Convenciones.",
+                    },
+                    {},
+                )
+            else:
+                return index, (
+                    {
+                        "idea_development_score": 0,
+                        "idea_development_feedback": "No Student Response Provided",
+                        "language_conventions_score": 0,
+                        "language_conventions_feedback": "Please note that if a response receives a score point 0 "
+                        "in the Idea Development trait, the response will also earn 0 points in "
+                        "the Conventions trait.",
+                    },
+                    {},
+                )
 
         async with semaphore:
             prompt = generate_prompt(row, scoring_format, stories, rubrics, question)
