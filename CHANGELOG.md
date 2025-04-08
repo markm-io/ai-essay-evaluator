@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.0 (2025-04-08)
+
+### Features
+
+- Enhance openai client with improved response handling and validation checks ([`0bfb3e0`](https://github.com/markm-io/ai-essay-evaluator/commit/0bfb3e0dc3b01c4a32794fd4c677def3899153cf))
+
 ## v0.7.0 (2025-03-26)
 
 ### Features
