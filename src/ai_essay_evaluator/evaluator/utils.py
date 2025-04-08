@@ -35,6 +35,12 @@ def normalize_response_text(df: pd.DataFrame) -> pd.DataFrame:
     Normalize text columns in a DataFrame.
     """
     df = df.map(lambda x: ftfy.fix_text(x) if isinstance(x, str) else x)
+
+    # Replace NaN in Student Constructed Response with None
+    if "Student Constructed Response" in df.columns:
+        df["Student Constructed Response"] = df["Student Constructed Response"].map(
+            lambda x: x if pd.notna(x) else None
+        )
     return df
 
 

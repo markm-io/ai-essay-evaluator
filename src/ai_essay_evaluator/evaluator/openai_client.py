@@ -29,7 +29,7 @@ class RateLimitTracker:
         self.requests_in_window = 0
         self.tokens_in_window = 0
         self.max_requests_per_minute = 5000  # Updated to 5000 RPM
-        self.max_tokens_per_minute = 2000000  # 2M TPM
+        self.max_tokens_per_minute = 4000000  # 4M TPM
 
 
 rate_tracker = RateLimitTracker()
@@ -111,7 +111,7 @@ async def call_openai_parse(
             max_tokens=max_completion_tokens,
         )
 
-        structured = extract_structured_response(response, scoring_format, async_logger, student_id)
+        structured = await extract_structured_response(response, scoring_format, async_logger, student_id)
         usage = response.usage
         return structured, usage
 
@@ -141,10 +141,35 @@ async def process_with_openai(
     )
 
     # Reduce concurrency to prevent overwhelming the API
-    semaphore = asyncio.Semaphore(30)  # Reduced from 100
+    semaphore = asyncio.Semaphore(25)  # Reduced from 100
 
     async def process_row(index, row):
-        student_id = row.get("Local Student ID", "N/A")
+        student_id = str(int(row.get("Local Student ID")))
+        student_response = row["Student Constructed Response"]
+
+        # Check if response is blank
+        if not student_response or student_response.strip() == "":
+            if async_logger:
+                await async_logger.log(
+                    logging.INFO,
+                    f"Blank response detected for student {student_id}. Skipping API call.",
+                    module=__name__,
+                )
+            if progress_callback:
+                await progress_callback()
+            # Return default response for blank submissions
+            return index, (
+                {
+                    "idea_development_score": 0,
+                    "idea_development_feedback": "No Student Response Provided",
+                    "language_conventions_score": 0,
+                    "language_conventions_feedback": "Please note that if a response receives a score point 0 in the "
+                    "Idea Development trait, the response will also earn 0 points in "
+                    "the Conventions trait.",
+                },
+                {},
+            )
+
         async with semaphore:
             prompt = generate_prompt(row, scoring_format, stories, rubrics, question)
             try:
@@ -262,14 +287,8 @@ def simplify_prompt(messages):
         return messages
 
 
-def extract_structured_response(response, scoring_format, async_logger=None, student_id="Unknown"):
+async def extract_structured_response(response, scoring_format, async_logger=None, student_id="Unknown"):
     response_text = response.choices[0].message.content.strip()
-
-    # Check for empty responses
-    if not response_text:
-        if async_logger:
-            logging.ERROR(f"Empty response from API for student {student_id}")
-        return get_default_response(scoring_format)
 
     try:
         # Check if response is already a dict (might happen with some API versions)
@@ -290,17 +309,43 @@ def extract_structured_response(response, scoring_format, async_logger=None, stu
                 else:
                     raise ValueError("Response does not contain valid JSON") from err
 
+        # Check for empty or minimal feedback
+        if scoring_format == "extended":
+            idea_feedback = structured_output.get("idea_development_feedback", "").strip()
+            lang_feedback = structured_output.get("language_conventions_feedback", "").strip()
+
+            if not idea_feedback or idea_feedback == "." or len(idea_feedback) < 5:
+                raise ValueError("Idea development feedback is empty or insufficient")
+
+            if not lang_feedback or lang_feedback == "." or len(lang_feedback) < 5:
+                raise ValueError("Language conventions feedback is empty or insufficient")
+        else:
+            feedback = structured_output.get("feedback", "").strip()
+            if not feedback or feedback == "." or len(feedback) < 5:
+                raise ValueError("Feedback is empty or insufficient")
+
         # Validate with appropriate model
         if scoring_format == "extended":
+            # Ensure language_conventions_score is 0 if idea_development_score is 0
+            if structured_output.get("idea_development_score") == 0:
+                structured_output["language_conventions_score"] = 0
+                if not structured_output.get("language_conventions_feedback").startswith("Error"):
+                    structured_output["language_conventions_feedback"] = (
+                        "Please note that if a response receives a score point 0 in the Idea Development trait, "
+                        "the response will also earn 0 points in the Conventions trait."
+                    )
+
             return ExtendedScoringResponse(**structured_output).model_dump()
         else:
             return StandardScoringResponse(**structured_output).model_dump()
     except (ValidationError, ValueError, json.JSONDecodeError) as e:
         if async_logger:
-            logging.ERROR(
-                f"Response validation failed for student {student_id}: {e}, Response: {response_text[:100]}..."
+            await async_logger.log(
+                logging.ERROR,
+                f"Response validation failed for student {student_id}: {e}, Response: {response_text[:100]}...",
+                module=__name__,
             )
-        return get_default_response(scoring_format)
+        raise
 
 
 def generate_prompt(row, scoring_format, story_dict, rubric_text, question_text):
