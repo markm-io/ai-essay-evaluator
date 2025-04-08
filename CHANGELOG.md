@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.9.0 (2025-04-08)
+
+### Features
+
+- Add language-specific feedback for blank student responses in openai client ([`1ed4377`](https://github.com/markm-io/ai-essay-evaluator/commit/1ed437771d76cc3f84d37ad8014f322edc658b13))
+
 ## v0.8.0 (2025-04-08)
 
 ### Features
