@@ -213,7 +213,7 @@ async def test_process_with_openai_blank_response(sample_df, mock_openai_client,
     with patch("ai_essay_evaluator.evaluator.openai_client.call_openai_parse", mock_call):
         # Also patch any other functions to avoid external dependencies
         with patch("ai_essay_evaluator.evaluator.openai_client.generate_prompt"):
-            results_df, usage = await process_with_openai(
+            _results_df, _usage = await process_with_openai(
                 blank_df,
                 "gpt-4o",
                 "test-api-key",
@@ -249,7 +249,7 @@ async def test_process_with_openai_error_handling(sample_df, mock_openai_client,
                 "language_conventions_feedback": "Error processing",
             }
 
-            results_df, usage = await process_with_openai(
+            results_df, _usage = await process_with_openai(
                 sample_df,
                 "gpt-4o",
                 "test-api-key",
@@ -277,3 +277,66 @@ async def test_process_with_openai_error_handling(sample_df, mock_openai_client,
             "language_conventions_feedback",
         ]
     )
+
+
+@pytest.mark.asyncio
+async def test_adaptive_rate_limit():
+    """Test adaptive rate limiting function."""
+    import time
+
+    from ai_essay_evaluator.evaluator.openai_client import adaptive_rate_limit, rate_tracker
+
+    # Reset rate tracker
+    rate_tracker.request_window_start = time.time()
+    rate_tracker.requests_in_window = 0
+
+    # Should not block for first few requests
+    await adaptive_rate_limit()
+    assert rate_tracker.requests_in_window == 1
+
+
+@pytest.mark.asyncio
+async def test_extract_structured_response_standard_format(mock_async_logger):
+    """Test extracting standard format response."""
+    response = MagicMock()
+    response.choices = [MagicMock()]
+    response.choices[0].message.content = json.dumps({"score": 3, "feedback": "Good work"})
+
+    result = await extract_structured_response(response, "standard", mock_async_logger)
+    assert result["score"] == 3
+    assert result["feedback"] == "Good work"
+
+
+def test_generate_prompt_spanish():
+    """Test prompt generation for Spanish language."""
+    row = {"Student Constructed Response": "Mi respuesta", "Tested Language": "Spanish", "Enrolled Grade Level": 4}
+
+    story_dict = {"title": "Historia"}
+    rubric_text = "Rúbrica"
+    question_text = "¿Qué pasó?"
+
+    messages = generate_prompt(row, "short", story_dict, rubric_text, question_text)
+
+    user_content = json.loads(messages[1]["content"])
+    assert "español" in user_content["evaluation_guidance"].lower()
+
+
+def test_get_default_response_all_formats():
+    """Test default responses for all formats."""
+    # Extended format
+    extended = get_default_response("extended")
+    assert "idea_development_score" in extended
+    assert "language_conventions_score" in extended
+
+    # Standard format
+    standard = get_default_response("standard")
+    assert "score" in standard
+    assert "feedback" in standard
+
+    # Item-specific format (should behave like standard)
+    item_specific = get_default_response("item-specific")
+    assert "score" in item_specific
+
+    # Short format (should behave like standard)
+    short = get_default_response("short")
+    assert "score" in short

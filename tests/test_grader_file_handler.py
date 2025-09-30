@@ -228,3 +228,29 @@ def test_merge_csv_files_non_standard_pass_naming(temp_dir):
     # Even without _pass_ in name, the function should still work
     assert output_path.exists()
     assert merged_df.shape[0] == 2
+
+
+def test_save_results_no_calculate_totals(temp_dir):
+    """Test saving results without calculating totals."""
+    data = {"essay_id": [1, 2], "idea_development_score": [40, 45], "language_conventions_score": [45, 47]}
+    df = pd.DataFrame(data)
+    output_path = temp_dir / "results_no_totals.csv"
+
+    save_results(df, output_path, calculate_totals=False)
+
+    loaded_df = pd.read_csv(output_path)
+    assert "total_score" not in loaded_df.columns
+
+
+def test_merge_csv_files_single_file(temp_dir):
+    """Test merging with only one CSV file."""
+    data = {"testentryid": ["S001"], "score": [85]}
+    df = pd.DataFrame(data)
+    file_path = temp_dir / "single.csv"
+    df.to_csv(file_path, index=False)
+
+    output_path = temp_dir / "merged_single.csv"
+    merged_df = merge_csv_files([file_path], output_path, "short")
+
+    assert output_path.exists()
+    assert len(merged_df) == 1

@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from ai_essay_evaluator.evaluator.utils import read_text_files, validate_csv
+from ai_essay_evaluator.evaluator.utils import normalize_response_text, normalize_text, read_text_files, validate_csv
 
 
 class TestValidateCSV:
@@ -82,3 +82,47 @@ class TestReadTextFiles:
             result = read_text_files(folder)
 
             assert result["special.txt"] == "Text with non-breaking space"
+
+
+class TestNormalizeText:
+    def test_normalize_text_basic(self):
+        """Test normalize_text with basic text."""
+        result = normalize_text("Hello world")
+        assert result == "Hello world"
+
+    def test_normalize_text_with_smart_apostrophe(self):
+        """Test normalize_text with smart apostrophe sequence."""
+        result = normalize_text("That\u201a\u00c4\u00f4s great")
+        assert "'" in result
+
+    def test_normalize_text_with_quotation_marks(self):
+        """Test normalize_text with various quotation marks."""
+        result = normalize_text("He said \u2018hello\u2019")
+        assert "'" in result
+
+    def test_normalize_text_with_non_string(self):
+        """Test normalize_text with non-string input."""
+        result = normalize_text(123)
+        assert result == 123
+
+
+class TestNormalizeResponseText:
+    def test_normalize_response_text_basic(self):
+        """Test normalizing text in DataFrame."""
+        df = pd.DataFrame({"Student Constructed Response": ["Hello world", "Test"]})
+        result = normalize_response_text(df)
+        assert len(result) == 2
+        assert "Student Constructed Response" in result.columns
+
+    def test_normalize_response_text_with_nan(self):
+        """Test normalizing DataFrame with NaN values."""
+        df = pd.DataFrame({"Student Constructed Response": ["Hello", None, "World"]})
+        result = normalize_response_text(df)
+        assert result["Student Constructed Response"].iloc[1] is None
+
+    def test_normalize_response_text_preserves_other_columns(self):
+        """Test that normalization preserves other columns."""
+        df = pd.DataFrame({"Student Constructed Response": ["Text"], "ID": [123], "Grade": [5]})
+        result = normalize_response_text(df)
+        assert "ID" in result.columns
+        assert result["ID"].iloc[0] == 123
