@@ -38,13 +38,82 @@
 
 ---
 
-This repository provides a modular framework for generating, validating, merging, uploading, and fine-tuning OpenAI GPT-4o-mini models using structured JSONL datasets.
+A comprehensive Python framework for automated essay evaluation using OpenAI's GPT models. This tool enables educators to grade student essays at scale with customizable scoring rubrics, fine-tune models with their own grading data, and generate detailed feedback across multiple scoring dimensions.
 
-## Installation
+## Features
 
-Install this via pip (or your favourite package manager):
+- **Automated Essay Grading** - Evaluate student essays using fine-tuned OpenAI GPT-4o-mini models
+- **Multiple Scoring Formats** - Choose from extended (multi-dimensional), item-specific, or short scoring formats
+- **Custom Model Training** - Generate training datasets and fine-tune models with your own grading examples
+- **Project Folder Mode** - Simple folder structure for organizing essays, rubrics, and prompts
+- **Cost Tracking** - Built-in token usage and cost analysis for OpenAI API calls
+- **Batch Processing** - Grade hundreds of essays with progress tracking and async processing
+- **Multi-Pass Grading** - Run multiple grading passes for consistency checking
+- **Rate Limit Handling** - Automatic retry logic and adaptive rate limiting
+- **Comprehensive Logging** - Async logging for debugging and auditing
 
-`pip install ai-essay-evaluator`
+## Quick Start
+
+### Installation
+
+Install via pip:
+
+```bash
+pip install ai-essay-evaluator
+```
+
+Or using uv (recommended for development):
+
+```bash
+uv pip install ai-essay-evaluator
+```
+
+### Basic Usage
+
+1. **Set up your project folder:**
+
+```
+my_project/
+├── input.csv              # Student responses
+├── question.txt           # Essay prompt
+├── story/                 # Story files
+│   └── story1.txt
+└── rubric/                # Rubric files
+    └── rubric1.txt
+```
+
+2. **Run the evaluator:**
+
+```bash
+python -m ai_essay_evaluator evaluator grader \
+  --project-folder ./my_project \
+  --scoring-format extended \
+  --api-key YOUR_OPENAI_API_KEY
+```
+
+3. **Check results in** `my_project/output/`
+
+### Training Your Own Model
+
+```bash
+# Generate training data from graded examples
+python -m ai_essay_evaluator trainer generate \
+  --story-folder ./training/story \
+  --question ./training/question.txt \
+  --rubric ./training/rubric.txt \
+  --csv ./training/graded_samples.csv \
+  --output training.jsonl \
+  --scoring-format extended
+
+# Validate and fine-tune
+python -m ai_essay_evaluator trainer validate --file training.jsonl
+python -m ai_essay_evaluator trainer fine-tune \
+  --file training.jsonl \
+  --scoring-format extended \
+  --api-key YOUR_OPENAI_API_KEY
+```
+
+For detailed documentation, visit the [full usage guide](https://ai-essay-evaluator.readthedocs.io/en/latest/usage.html).
 
 ## Contributors ✨
 
