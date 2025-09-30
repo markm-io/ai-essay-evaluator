@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.0 (2025-09-30)
+
+### Features
+
+- Enhance documentation and installation instructions for ai essay evaluator ([`c84a42f`](https://github.com/markm-io/ai-essay-evaluator/commit/c84a42fb5bc4d43341c933753f652bca12442db2))
+
 ## v1.0.0 (2025-06-13)
 
 ## v0.9.0 (2025-04-08)
