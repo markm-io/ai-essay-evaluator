@@ -42,7 +42,7 @@ urls.repository = "https://github.com/markm-io/ai-essay-evaluator"
 dev = [
   "pytest>=8,<9",
   "pytest-asyncio>=0.25.3",
-  "pytest-cov>=6,<7",
+  "pytest-cov>=7,<8",
 ]
 docs = [
   "sphinx-wagtail-theme>=6.5.0; python_version>='3.11'",
