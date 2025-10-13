@@ -38,9 +38,9 @@ def analyze_cost(usage_list):
 
         total_uncached_tokens += usage.prompt_tokens - cached_tokens
 
-    cost_uncached = (total_uncached_tokens / 1_000_000) * 0.30
-    cost_cached = (total_cached_tokens / 1_000_000) * 0.15
-    cost_output = (total_output_tokens / 1_000_000) * 1.20
+    cost_uncached = (total_uncached_tokens / 1_000_000) * 0.15
+    cost_cached = (total_cached_tokens / 1_000_000) * 0.075
+    cost_output = (total_output_tokens / 1_000_000) * 0.6
 
     total_cost = cost_uncached + cost_cached + cost_output
 
