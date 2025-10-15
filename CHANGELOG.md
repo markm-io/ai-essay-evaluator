@@ -1,9 +1,12 @@
 # Changelog
 
+## v1.3.2 (2025-10-15)
+
 ## v1.3.1 (2025-10-15)
 
 ### Bug fixes
 
+- Update renovate configuration to use recommended settings ([`8c41d6d`](https://github.com/markm-io/ai-essay-evaluator/commit/8c41d6d73acf11f66f89da3c49c62292236dba51))
 - Use gh_pat to avoid oidc workflow validation errors ([`3cf5207`](https://github.com/markm-io/ai-essay-evaluator/commit/3cf5207601243961c9668e9db3cd3bb1e5ec51f4))
 
 ## v1.3.0 (2025-10-15)
