@@ -1,6 +1,6 @@
 # Changes here will be overwritten by Copier
 _commit: '2770659'
-_src_path: gh:markm-io/pypackage-template
+_src_path: gh:browniebroke/pypackage-template
 add_me_as_contributor: true
 copyright_year: '2025'
 documentation: true
