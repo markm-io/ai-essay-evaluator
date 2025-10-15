@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.0 (2025-10-15)
+
+### Features
+
+- Update renovate configuration for automerging and package rules ([`8c3c675`](https://github.com/markm-io/ai-essay-evaluator/commit/8c3c675f64d8b2d866674496f158ad266bcb1f55))
+
 ## v1.2.0 (2025-10-15)
 
 ### Features
