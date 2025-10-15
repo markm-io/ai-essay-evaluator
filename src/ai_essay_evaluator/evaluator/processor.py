@@ -143,7 +143,7 @@ async def process_csv(
 
         if cost_analysis:
             duration = time.time() - start_time
-            cost_data = analyze_cost(cumulative_usage)
+            cost_data = analyze_cost(cumulative_usage, model=ai_model)
             # Add duration to cost_data dictionary
             cost_data["duration_seconds"] = duration
 
