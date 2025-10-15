@@ -445,7 +445,7 @@ def generate_prompt(row, scoring_format, story_dict, rubric_text, question_text)
                 f"2. Identify what percentage of the response is the student's own words vs. copied text\n"
                 f"3. Look for evidence of analysis, synthesis, or explanation (e.g., 'This shows...', "
                 f"'This proves...', 'They are similar because...')\n"
-                f"4. If the response shows an attempt to answer with evidence and some analysis, grade it 1-3 based on "
+                f"4. If the response shows an attempt to answer with evidence and some analysis, grade it based on "
                 f"the rubric criteria (NOT 0)\n"
                 f"5. Only assign 0 if it's predominantly copied text with no meaningful attempt to answer or analyze\n"
                 f"\n"
