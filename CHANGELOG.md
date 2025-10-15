@@ -1,10 +1,25 @@
 # Changelog
 
+## v1.2.0 (2025-10-15)
+
+### Features
+
+- Enhance cost analysis with model-specific pricing and add tests ([`ba7223a`](https://github.com/markm-io/ai-essay-evaluator/commit/ba7223a23a7d0892d849c19d375ca389a68af991))
+
+### Bug fixes
+
+- Refine grading instructions for evidence-based writing assessment ([`4ad2544`](https://github.com/markm-io/ai-essay-evaluator/commit/4ad254469f447ca0c52b112ed91b724656b822b6))
+
 ## v1.1.0 (2025-09-30)
 
 ### Features
 
+- Enhance evaluation guidelines for evidence-based writing and plagiarism detection ([`ccc29ba`](https://github.com/markm-io/ai-essay-evaluator/commit/ccc29ba366fbf29318a3f74779e11530ec6578e9))
 - Enhance documentation and installation instructions for ai essay evaluator ([`c84a42f`](https://github.com/markm-io/ai-essay-evaluator/commit/c84a42fb5bc4d43341c933753f652bca12442db2))
+
+### Bug fixes
+
+- Adjust cost calculations for uncached, cached, and output tokens ([`1ee608e`](https://github.com/markm-io/ai-essay-evaluator/commit/1ee608ea01f5a766df2e949a0ab4cfb9c3a2f447))
 
 ## v1.0.0 (2025-06-13)
 
