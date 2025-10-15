@@ -1,31 +1,40 @@
 {
-  "extends": ["github>browniebroke/renovate-configs:python", "config:base"],
-
+  "extends": [
+    "github>browniebroke/renovate-configs:python",
+    "config:recommended"
+  ],
   "automerge": true,
   "automergeType": "pr",
   "automergeStrategy": "squash",
   "platformAutomerge": true,
   "rebaseWhen": "behind-base-branch",
-  "requiredStatusChecks": null,
-
+  "ignoreTests": true,
   "packageRules": [
     {
-      "matchManagers": ["uv"],
+      "matchManagers": [
+        "uv"
+      ],
       "groupName": "uv dependencies",
       "automerge": true
     },
     {
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "groupName": "GitHub Actions",
       "automerge": true
     },
     {
-      "matchManagers": ["pre-commit"],
+      "matchManagers": [
+        "pre-commit"
+      ],
       "groupName": "Pre-commit Hooks",
       "automerge": true
     },
     {
-      "matchUpdateTypes": ["major"],
+      "matchUpdateTypes": [
+        "major"
+      ],
       "automerge": false
     }
   ]
