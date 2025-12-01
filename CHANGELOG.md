@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.3 (2025-12-01)
+
+### Bug fixes
+
+- Update dependency pandas-stubs to v2.3.3.251201 ([`548b5eb`](https://github.com/markm-io/ai-essay-evaluator/commit/548b5ebdfa99017aa751973716c842af31b1e235))
+
 ## v1.3.2 (2025-10-15)
 
 ## v1.3.1 (2025-10-15)
