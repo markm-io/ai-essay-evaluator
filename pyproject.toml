@@ -40,7 +40,7 @@ urls.repository = "https://github.com/markm-io/ai-essay-evaluator"
 
 [dependency-groups]
 dev = [
-  "pytest>=8,<9",
+  "pytest>=9,<10",
   "pytest-asyncio>=0.25.3",
   "pytest-cov>=6,<7",
 ]
